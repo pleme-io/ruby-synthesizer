@@ -171,7 +171,7 @@ proptest! {
     fn reflexivity(ty in arb_ruby_type()) {
         let a = ty.emit();
         let b = ty.emit();
-        prop_assert_eq!(a, b, "emit must be reflexive (deterministic)");
+        prop_assert!(a == b, "emit must be reflexive (deterministic)");
     }
 
     // ── 10. Optional idempotence as lattice join: join(x, optional(x)) == optional(x)

@@ -171,7 +171,7 @@ proptest! {
     fn proof_11_determinism(ty in arb_iac_type()) {
         let a = iac_type_to_ruby(&ty).emit();
         let b = iac_type_to_ruby(&ty).emit();
-        prop_assert_eq!(a, b, "non-deterministic emit for same IacType");
+        prop_assert!(a == b, "non-deterministic emit for same IacType");
     }
 
     /// Proof 12: Nested depth — List(List(X)) has correct nesting

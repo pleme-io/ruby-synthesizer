@@ -119,7 +119,7 @@ proptest! {
             .emit();
         let module_re = Regex::new(r"(?m)^module ").unwrap();
         let count = module_re.find_iter(&source).count();
-        prop_assert_eq!(count, 1, "expected 1 module declaration, got {count} in:\n{source}");
+        prop_assert!(count == 1, "expected 1 module declaration, got {count} in:\n{source}");
     }
 
     /// Proof 3: Module path contains provider in PascalCase.
@@ -295,9 +295,10 @@ proptest! {
         let t_re = Regex::new(r"(?m)^\s+T = ").unwrap();
         let class_count = class_re.find_iter(&source).count();
         let t_count = t_re.find_iter(&source).count();
-        prop_assert_eq!(
-            class_count, t_count,
-            "class count ({class_count}) != T constant count ({t_count}) in:\n{source}"
+        prop_assert!(
+            class_count == t_count,
+            "class count ({}) != T constant count ({}) in:\n{}",
+            class_count, t_count, source
         );
     }
 }
@@ -464,9 +465,10 @@ proptest! {
             + class_re.find_iter(&source).count();
         let closers = end_re.find_iter(&source).count();
 
-        prop_assert_eq!(
-            openers, closers,
-            "unbalanced blocks: {openers} openers vs {closers} ends in:\n{source}"
+        prop_assert!(
+            openers == closers,
+            "unbalanced blocks: {} openers vs {} ends in:\n{}",
+            openers, closers, source
         );
     }
 }

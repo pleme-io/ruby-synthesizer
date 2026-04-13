@@ -102,7 +102,7 @@ proptest! {
         let sa = RubyType::simple(&a).emit();
         let sb = RubyType::simple(&b).emit();
         if sa == sb {
-            prop_assert_eq!(a, b, "simple is not injective");
+            prop_assert!(a == b, "simple is not injective");
         }
     }
 
