@@ -37,6 +37,7 @@ mod node;
 mod types;
 mod emitter;
 mod rspec;
+pub mod builders;
 
 #[cfg(feature = "iac-bridge")]
 pub mod iac_bridge;
