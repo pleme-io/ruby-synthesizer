@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 24c2990e3cd8a5bb3db2ac9b0ef333482d18a82bcb9fd934057bc42f31cd452f # shrinks to variants = [Union([Simple("T::String"), Simple("T::String")]), Simple("T::String")]
+cc 77ce7914bc65a4f4fafd2beb732eeea2ed335b9f78d0d9a12733c8e85207ffbc # shrinks to a = Optional(Simple("T::Bool")), b = Simple("T::Bool")

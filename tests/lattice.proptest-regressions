@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 9eaf856b1fa2af70c1d5ed754b665bc13a283ebfc36d0b5eac749436eefef5fd # shrinks to ty = Constrained { base: Simple("T::String"), constraint: "included_in: ['a', 'b']" }
