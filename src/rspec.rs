@@ -184,13 +184,12 @@ impl ItBuilder {
 /// Convenience macro for building Ruby AST nodes with Ruby-like syntax.
 ///
 /// ```rust
-/// use ruby_synthesizer::{ruby_module, RubyNode, RubyType};
+/// use ruby_synthesizer::{ruby_module, ruby_body, ruby_parent, RubyNode, RubyType};
 ///
-/// let node = ruby_module!("Pangea::Resources::Porkbun::Types" => {
+/// let node = ruby_module!("Pangea::Resources::Test" => {
 ///     include "Dry.Types()";
-///     class "NameserversAttributes" < "Pangea::Resources::BaseAttributes" {
-///         attribute "domain" : RubyType::simple("T::String");
-///         attribute "nameservers" : RubyType::array(RubyType::simple("T::String"));
+///     class "MyAttrs" < "BaseAttributes" {
+///         attribute "name", RubyType::simple("T::String");
 ///     }
 /// });
 /// ```

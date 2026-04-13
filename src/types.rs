@@ -38,10 +38,17 @@ impl RubyType {
         Self::Array(Box::new(inner))
     }
 
-    /// Convenience: union of types.
+    /// Union of types. Enforces invariants:
+    /// - 0 variants: panics (invalid — use a specific type)
+    /// - 1 variant: degenerates to that variant (no wrapping)
+    /// - 2+ variants: produces Union
     #[must_use]
     pub fn union(variants: Vec<Self>) -> Self {
-        Self::Union(variants)
+        match variants.len() {
+            0 => panic!("RubyType::union with 0 variants is invalid — use a specific type"),
+            1 => variants.into_iter().next().expect("checked len"),
+            _ => Self::Union(variants),
+        }
     }
 
     /// Convenience: constrained type.
@@ -53,9 +60,12 @@ impl RubyType {
         }
     }
 
-    /// Convenience: optional wrapper.
+    /// Optional wrapper. Idempotent: `optional(optional(x)) == optional(x)`.
     #[must_use]
     pub fn optional(inner: Self) -> Self {
+        if matches!(inner, Self::Optional(_)) {
+            return inner; // idempotent — already optional
+        }
         Self::Optional(Box::new(inner))
     }
 

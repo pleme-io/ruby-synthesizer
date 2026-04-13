@@ -7,5 +7,9 @@ description = "Typed AST for structurally correct Ruby code generation"
 license = "MIT"
 repository = "https://github.com/pleme-io/ruby-synthesizer"
 
+[dev-dependencies]
+proptest = "1"
+regex = "1"
+
 [lints.clippy]
 pedantic = "warn"
