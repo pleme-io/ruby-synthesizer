@@ -2,7 +2,7 @@
 
 Typed AST for structurally correct Ruby code generation from Rust.
 Ruby is a build artifact -- authored in Rust, materialized as Ruby,
-proven by 173 tests. Syntax errors are impossible at the Rust compiler level.
+proven by 225 tests. Syntax errors are impossible at the Rust compiler level.
 
 ## How It Is Consumed
 
@@ -127,7 +127,7 @@ ruby_parent!()           // -> None
 ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 ```
 
-## What's Proven (173 tests)
+## What's Proven (225 tests)
 
 | Category | Tests | File | What |
 |----------|-------|------|------|
@@ -144,6 +144,7 @@ ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 | Unit (types) | 9 | `src/types.rs` | Type emission for all variants |
 | RSpec builder | 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings |
 | Unit (rspec) | 3 | `src/rspec.rs` | Fluent builder + macro parity |
+| Exhaustive AST proofs | 48 | `tests/exhaustive_ast_proofs.rs` | Every node variant emission, type algebra proptest, builder edge cases, IaC bridge exhaustive coverage, cross-cutting structural invariants |
 | Unit (emitter) | 1 | `src/emitter.rs` | Complete file emission |
 
 ## IaC Bridge (feature: iac-bridge)
@@ -163,11 +164,11 @@ The convergence pipeline at the language boundary:
 
 ```
 declared          -> resolved            -> converged         -> verified
-Rust enums           compile-time valid     emit_file()          173 tests
+Rust enums           compile-time valid     emit_file()          225 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
 - **declared** = Rust types (RubyNode 25 variants, RubyType 7 variants)
 - **resolved** = AST construction (invalid nesting = compile error)
 - **converged** = `emit_file()` produces Ruby source (deterministic, trailing newline)
-- **verified** = 173 tests prove all invariants hold (lattice, algebra, bridge, structure)
+- **verified** = 225 tests prove all invariants hold (lattice, algebra, bridge, structure)
