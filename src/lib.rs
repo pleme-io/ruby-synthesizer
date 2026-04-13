@@ -38,6 +38,9 @@ mod types;
 mod emitter;
 mod rspec;
 
+#[cfg(feature = "iac-bridge")]
+pub mod iac_bridge;
+
 pub use node::RubyNode;
 pub use types::RubyType;
 pub use emitter::emit_file;

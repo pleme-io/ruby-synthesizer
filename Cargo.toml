@@ -7,9 +7,17 @@ description = "Typed AST for structurally correct Ruby code generation"
 license = "MIT"
 repository = "https://github.com/pleme-io/ruby-synthesizer"
 
+[features]
+default = []
+iac-bridge = ["dep:iac-forge"]
+
+[dependencies]
+iac-forge = { git = "https://github.com/pleme-io/iac-forge", optional = true }
+
 [dev-dependencies]
 proptest = "1"
 regex = "1"
+iac-forge = { git = "https://github.com/pleme-io/iac-forge" }
 
 [lints.clippy]
 pedantic = "warn"
