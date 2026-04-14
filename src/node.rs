@@ -216,10 +216,11 @@ pub enum RubyNode {
         providers: Vec<(String, String)>,
     },
 
-    /// Generic Ruby block: `header do ... end`
-    /// Used for any `name do ... end` pattern (group, namespace, etc.)
+    /// Generic Ruby block: `header do [|params|] ... end`
+    /// Used for any `name do ... end` pattern (group, namespace, gemspec, etc.)
     DoBlock {
         header: String,
+        params: Option<String>,
         body: Vec<RubyNode>,
     },
 
@@ -581,8 +582,12 @@ impl RubyNode {
                 format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
-            Self::DoBlock { header, body } => {
-                let mut out = format!("{pad}{header} do\n");
+            Self::DoBlock { header, params, body } => {
+                let params_str = match params {
+                    Some(p) => format!(" |{p}|"),
+                    None => String::new(),
+                };
+                let mut out = format!("{pad}{header} do{params_str}\n");
                 for node in body {
                     out.push_str(&node.emit(indent + 1));
                     out.push('\n');
