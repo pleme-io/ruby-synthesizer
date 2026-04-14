@@ -195,6 +195,13 @@ pub enum RubyNode {
         providers: Vec<(String, String)>,
     },
 
+    /// Generic Ruby block: `header do ... end`
+    /// Used for any `name do ... end` pattern (group, namespace, etc.)
+    DoBlock {
+        header: String,
+        body: Vec<RubyNode>,
+    },
+
     /// DSL method call without parens: `method_name value`
     /// Used for Ruby DSL setters in block context (provider blocks, etc.)
     DslSetter {
@@ -494,7 +501,22 @@ impl RubyNode {
                 format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
-            Self::DslSetter { method, value } => format!("{pad}{method} {value}"),
+            Self::DoBlock { header, body } => {
+                let mut out = format!("{pad}{header} do\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+            Self::DslSetter { method, value } => {
+                if value.is_empty() {
+                    format!("{pad}{method}")
+                } else {
+                    format!("{pad}{method} {value}")
+                }
+            }
             Self::RSpecCode(code) => format!("{pad}{code}"),
             #[allow(deprecated)]
             Self::Raw(code) => format!("{pad}{code}"),
