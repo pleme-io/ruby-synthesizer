@@ -195,6 +195,13 @@ pub enum RubyNode {
         providers: Vec<(String, String)>,
     },
 
+    /// DSL method call without parens: `method_name value`
+    /// Used for Ruby DSL setters in block context (provider blocks, etc.)
+    DslSetter {
+        method: String,
+        value: String,
+    },
+
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
     RSpecCode(String),
 
@@ -487,6 +494,7 @@ impl RubyNode {
                 format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
+            Self::DslSetter { method, value } => format!("{pad}{method} {value}"),
             Self::RSpecCode(code) => format!("{pad}{code}"),
             #[allow(deprecated)]
             Self::Raw(code) => format!("{pad}{code}"),
