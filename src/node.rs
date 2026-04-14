@@ -2,6 +2,13 @@
 
 use crate::types::RubyType;
 
+/// Pangea output type (display for humans, data for downstream).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PangeaOutputType {
+    Display,
+    Data,
+}
+
 /// A Ruby source code node. Compose these to build structurally correct Ruby.
 ///
 /// Each variant maps to exactly one Ruby construct. The emitter produces
@@ -85,6 +92,108 @@ pub enum RubyNode {
 
     /// `Pangea::ResourceRegistry.register_module(Module)`
     RegistryCall(String),
+
+    // ── Pangea DSL ────────────────────────────────────────────────
+
+    /// `template :name do ... end`
+    PangeaTemplate {
+        name: String,
+        body: Vec<RubyNode>,
+    },
+
+    /// `provider :name do ... end` or `provider :name, key: value`
+    PangeaProvider {
+        name: String,
+        args: Vec<(String, String)>,
+        body: Vec<RubyNode>,
+    },
+
+    /// `terraform do ... end`
+    PangeaTerraform {
+        body: Vec<RubyNode>,
+    },
+
+    /// `resource_type(:symbol_name, { key: value, ... })`
+    /// e.g., `aws_route53_zone(:name, { name: domain, ... })`
+    PangeaResourceCall {
+        resource_type: String,
+        symbol: String,
+        args: Vec<(String, String)>,
+    },
+
+    /// `display_output :name do ... end` or `data_output :name do ... end`
+    PangeaOutput {
+        output_type: PangeaOutputType,
+        name: String,
+        value: String,
+        description: String,
+    },
+
+    /// `Pangea::Secrets.configure(sops_file: ...)`
+    PangeaSecretsConfig {
+        sops_file: String,
+    },
+
+    /// `Pangea::RemoteState.configure(bucket: ..., region: ...)`
+    PangeaRemoteStateConfig {
+        bucket: String,
+        region: String,
+    },
+
+    /// `Pangea::RemoteState.output(template: ..., output: ..., state_key: ...)`
+    PangeaRemoteStateOutput {
+        template: String,
+        output: String,
+        state_key: String,
+    },
+
+    /// `self.extend(ModuleName) unless respond_to?(:method_name)`
+    ExtendModule {
+        module_path: String,
+        guard_method: Option<String>,
+    },
+
+    /// `ENV.fetch('KEY', 'default')` or `ENV['KEY'] ||= value`
+    EnvFetch {
+        key: String,
+        default: Option<String>,
+    },
+
+    /// `ENV['KEY'] ||= expr`
+    EnvAssign {
+        key: String,
+        value: String,
+    },
+
+    /// `variable = expr`
+    Assignment {
+        variable: String,
+        value: String,
+    },
+
+    /// `unless condition ... end`
+    Unless {
+        condition: String,
+        body: Vec<RubyNode>,
+    },
+
+    /// `if condition ... end`
+    IfBlock {
+        condition: String,
+        body: Vec<RubyNode>,
+    },
+
+    /// `begin ... rescue ExceptionClass ... end`
+    BeginRescue {
+        body: Vec<RubyNode>,
+        rescue_class: String,
+        rescue_body: Vec<RubyNode>,
+    },
+
+    /// `required_providers({ name: { source: 'source' } })`
+    RequiredProviders {
+        providers: Vec<(String, String)>,
+    },
 
     /// Raw Ruby expression (escape hatch — use sparingly)
     Raw(String),
@@ -231,6 +340,147 @@ impl RubyNode {
 
             Self::RegistryCall(module_path) => {
                 format!("{pad}Pangea::ResourceRegistry.register_module({module_path})")
+            }
+
+            // ── Pangea DSL ────────────────────────────────────────────
+
+            Self::PangeaTemplate { name, body } => {
+                let mut out = format!("{pad}template :{name} do\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::PangeaProvider { name, args, body } => {
+                if body.is_empty() && !args.is_empty() {
+                    let args_str = args.iter()
+                        .map(|(k, v)| format!("{k}: {v}"))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    format!("{pad}provider :{name}, {args_str}")
+                } else {
+                    let mut out = format!("{pad}provider :{name} do\n");
+                    for node in body {
+                        out.push_str(&node.emit(indent + 1));
+                        out.push('\n');
+                    }
+                    out.push_str(&format!("{pad}end"));
+                    out
+                }
+            }
+
+            Self::PangeaTerraform { body } => {
+                let mut out = format!("{pad}terraform do\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::PangeaResourceCall { resource_type, symbol, args } => {
+                let args_str = args.iter()
+                    .map(|(k, v)| format!("{pad}  {k}: {v}"))
+                    .collect::<Vec<_>>()
+                    .join(",\n");
+                format!("{pad}{resource_type}(:\"{symbol}\", {{\n{args_str},\n{pad}}})")
+            }
+
+            Self::PangeaOutput { output_type, name, value, description } => {
+                let method = match output_type {
+                    PangeaOutputType::Display => "display_output",
+                    PangeaOutputType::Data => "data_output",
+                };
+                format!(
+                    "{pad}{method} :{name} do\n{pad}  value {value}\n{pad}  description \"{description}\"\n{pad}end"
+                )
+            }
+
+            Self::PangeaSecretsConfig { sops_file } => {
+                format!(
+                    "{pad}Pangea::Secrets.configure(\n{pad}  sops_file: File.expand_path('{sops_file}', __dir__),\n{pad})"
+                )
+            }
+
+            Self::PangeaRemoteStateConfig { bucket, region } => {
+                format!(
+                    "{pad}Pangea::RemoteState.configure(bucket: {bucket}, region: {region})"
+                )
+            }
+
+            Self::PangeaRemoteStateOutput { template, output, state_key } => {
+                format!(
+                    "{pad}Pangea::RemoteState.output(template: '{template}', output: :{output}, state_key: '{state_key}')"
+                )
+            }
+
+            Self::ExtendModule { module_path, guard_method } => {
+                match guard_method {
+                    Some(method) => format!("{pad}self.extend({module_path}) unless respond_to?(:{method})"),
+                    None => format!("{pad}self.extend({module_path})"),
+                }
+            }
+
+            Self::EnvFetch { key, default } => {
+                match default {
+                    Some(d) => format!("{pad}ENV.fetch('{key}', '{d}')"),
+                    None => format!("{pad}ENV.fetch('{key}')"),
+                }
+            }
+
+            Self::EnvAssign { key, value } => {
+                format!("{pad}ENV['{key}'] ||= {value}")
+            }
+
+            Self::Assignment { variable, value } => {
+                format!("{pad}{variable} = {value}")
+            }
+
+            Self::Unless { condition, body } => {
+                let mut out = format!("{pad}unless {condition}\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::IfBlock { condition, body } => {
+                let mut out = format!("{pad}if {condition}\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::BeginRescue { body, rescue_class, rescue_body } => {
+                let mut out = format!("{pad}begin\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}rescue {rescue_class}\n"));
+                for node in rescue_body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::RequiredProviders { providers } => {
+                let providers_str = providers.iter()
+                    .map(|(name, source)| format!("{pad}  {name}: {{ source: '{source}' }}"))
+                    .collect::<Vec<_>>()
+                    .join(",\n");
+                format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
             Self::Raw(code) => format!("{pad}{code}"),
