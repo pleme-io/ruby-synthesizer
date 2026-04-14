@@ -173,10 +173,10 @@ impl ItBuilder {
         self
     }
 
-    /// Add a raw expression.
+    /// Add a Ruby expression to the test body.
     #[must_use]
     pub fn raw(mut self, code: &str) -> Self {
-        self.body.push(RubyNode::Raw(code.to_string()));
+        self.body.push(RubyNode::RSpecCode(code.to_string()));
         self
     }
 }
