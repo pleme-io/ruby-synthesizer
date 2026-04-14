@@ -195,7 +195,8 @@ pub enum RubyNode {
         providers: Vec<(String, String)>,
     },
 
-    /// Raw Ruby expression (escape hatch — use sparingly)
+    /// Raw Ruby expression — DEPRECATED: use a typed variant instead.
+    #[deprecated(note = "use a typed variant instead of Raw — Raw defeats provability")]
     Raw(String),
 
     // ── RSpec ──────────────────────────────────────────────────────
@@ -483,6 +484,7 @@ impl RubyNode {
                 format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
+            #[allow(deprecated)]
             Self::Raw(code) => format!("{pad}{code}"),
 
             // RSpec
