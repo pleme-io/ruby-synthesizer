@@ -42,7 +42,7 @@ pub mod builders;
 #[cfg(feature = "iac-bridge")]
 pub mod iac_bridge;
 
-pub use node::{PangeaOutputType, RubyNode};
+pub use node::{MethodParam, PangeaOutputType, RubyNode};
 pub use types::RubyType;
 pub use emitter::emit_file;
 pub use rspec::RSpecBuilder;

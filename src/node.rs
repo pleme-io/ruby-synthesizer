@@ -9,6 +9,23 @@ pub enum PangeaOutputType {
     Data,
 }
 
+/// A method parameter with optional default value.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MethodParam {
+    pub name: String,
+    pub default: Option<String>,
+}
+
+impl MethodParam {
+    pub fn required(name: impl Into<String>) -> Self {
+        Self { name: name.into(), default: None }
+    }
+
+    pub fn with_default(name: impl Into<String>, default: impl Into<String>) -> Self {
+        Self { name: name.into(), default: Some(default.into()) }
+    }
+}
+
 /// A Ruby source code node. Compose these to build structurally correct Ruby.
 ///
 /// Each variant maps to exactly one Ruby construct. The emitter produces
@@ -113,9 +130,11 @@ pub enum RubyNode {
         body: Vec<RubyNode>,
     },
 
-    /// `resource_type(:symbol_name, { key: value, ... })`
-    /// e.g., `aws_route53_zone(:name, { name: domain, ... })`
+    /// `[receiver.]resource_type(:symbol_name, { key: value, ... })`
+    /// e.g., `synth.aws_route53_zone(:name, { name: domain, ... })`
+    /// receiver=None → bare call (template context), Some("synth") → synth.call
     PangeaResourceCall {
+        receiver: Option<String>,
         resource_type: String,
         symbol: String,
         args: Vec<(String, String)>,
@@ -147,8 +166,10 @@ pub enum RubyNode {
         state_key: String,
     },
 
-    /// `self.extend(ModuleName) unless respond_to?(:method_name)`
+    /// `[receiver.]extend(ModuleName) unless [receiver.]respond_to?(:method_name)`
+    /// receiver=None → self, Some("synth") → synth
     ExtendModule {
+        receiver: Option<String>,
         module_path: String,
         guard_method: Option<String>,
     },
@@ -241,6 +262,22 @@ pub enum RubyNode {
     MergeCall {
         receiver: Box<RubyNode>,
         hash: Vec<(String, RubyNode)>,
+    },
+
+    // ── Architecture generation nodes ───────────────────────────────
+
+    /// `def self.method_name(param1, param2 = default) ... end`
+    MethodDef {
+        receiver: Option<String>,
+        name: String,
+        params: Vec<MethodParam>,
+        body: Vec<RubyNode>,
+    },
+
+    /// `NAME = { 'key' => 'value', ... }.freeze`
+    FrozenConstHash {
+        name: String,
+        entries: Vec<(String, String)>,
     },
 
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
@@ -434,12 +471,20 @@ impl RubyNode {
                 out
             }
 
-            Self::PangeaResourceCall { resource_type, symbol, args } => {
-                let args_str = args.iter()
-                    .map(|(k, v)| format!("{pad}  {k}: {v}"))
-                    .collect::<Vec<_>>()
-                    .join(",\n");
-                format!("{pad}{resource_type}(:\"{symbol}\", {{\n{args_str},\n{pad}}})")
+            Self::PangeaResourceCall { receiver, resource_type, symbol, args } => {
+                let rcv = match receiver {
+                    Some(r) => format!("{r}."),
+                    None => String::new(),
+                };
+                if args.is_empty() {
+                    format!("{pad}{rcv}{resource_type}(:\"{symbol}\", {{}})")
+                } else {
+                    let args_str = args.iter()
+                        .map(|(k, v)| format!("{pad}  {k}: {v}"))
+                        .collect::<Vec<_>>()
+                        .join(",\n");
+                    format!("{pad}{rcv}{resource_type}(:\"{symbol}\", {{\n{args_str},\n{pad}}})")
+                }
             }
 
             Self::PangeaOutput { output_type, name, value, description } => {
@@ -470,10 +515,11 @@ impl RubyNode {
                 )
             }
 
-            Self::ExtendModule { module_path, guard_method } => {
+            Self::ExtendModule { receiver, module_path, guard_method } => {
+                let rcv = receiver.as_deref().unwrap_or("self");
                 match guard_method {
-                    Some(method) => format!("{pad}self.extend({module_path}) unless respond_to?(:{method})"),
-                    None => format!("{pad}self.extend({module_path})"),
+                    Some(method) => format!("{pad}{rcv}.extend({module_path}) unless {rcv}.respond_to?(:{method})"),
+                    None => format!("{pad}{rcv}.extend({module_path})"),
                 }
             }
 
@@ -595,6 +641,47 @@ impl RubyNode {
                     .map(|(k, v)| format!("{k}: {}", v.emit(0)))
                     .collect();
                 format!("{pad}{}.merge({})", receiver.emit(0), inner.join(", "))
+            }
+
+            // Architecture generation nodes
+            Self::MethodDef { receiver, name, params, body } => {
+                let rcv = match receiver {
+                    Some(r) => format!("{r}."),
+                    None => String::new(),
+                };
+                let params_str = params.iter()
+                    .map(|p| match &p.default {
+                        Some(d) => format!("{} = {d}", p.name),
+                        None => p.name.clone(),
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let mut out = format!("{pad}def {rcv}{name}({params_str})\n");
+                for node in body {
+                    out.push_str(&node.emit(indent + 1));
+                    out.push('\n');
+                }
+                out.push_str(&format!("{pad}end"));
+                out
+            }
+
+            Self::FrozenConstHash { name, entries } => {
+                if entries.is_empty() {
+                    format!("{pad}{name} = {{}}.freeze")
+                } else if entries.len() <= 2 {
+                    let pairs: Vec<String> = entries.iter()
+                        .map(|(k, v)| format!("'{k}' => '{v}'"))
+                        .collect();
+                    format!("{pad}{name} = {{ {} }}.freeze", pairs.join(", "))
+                } else {
+                    let inner_pad = "  ".repeat(indent + 1);
+                    let mut out = format!("{pad}{name} = {{\n");
+                    for (k, v) in entries {
+                        out.push_str(&format!("{inner_pad}'{k}' => '{v}',\n"));
+                    }
+                    out.push_str(&format!("{pad}}}.freeze"));
+                    out
+                }
             }
 
             Self::RSpecCode(code) => format!("{pad}{code}"),
@@ -818,5 +905,121 @@ mod tests {
             node.emit(0),
             "Pangea::ResourceRegistry.register_module(Pangea::Resources::Porkbun)"
         );
+    }
+
+    // ── Architecture generation nodes ──────────────────────
+
+    #[test]
+    fn method_def_with_defaults() {
+        let node = RubyNode::MethodDef {
+            receiver: Some("self".into()),
+            name: "build".into(),
+            params: vec![
+                MethodParam::required("synth"),
+                MethodParam::with_default("config", "{}"),
+            ],
+            body: vec![
+                RubyNode::Assignment {
+                    variable: "config".into(),
+                    value: "Types::Config.new(config).to_h".into(),
+                },
+            ],
+        };
+        let output = node.emit(2);
+        assert!(output.contains("def self.build(synth, config = {})"));
+        assert!(output.contains("    config = Types::Config.new(config).to_h"));
+        assert!(output.ends_with("  end"));
+    }
+
+    #[test]
+    fn method_def_without_receiver() {
+        let node = RubyNode::MethodDef {
+            receiver: None,
+            name: "initialize".into(),
+            params: vec![MethodParam::required("name")],
+            body: vec![],
+        };
+        let output = node.emit(0);
+        assert!(output.starts_with("def initialize(name)"));
+    }
+
+    #[test]
+    fn frozen_const_hash_empty() {
+        let node = RubyNode::FrozenConstHash {
+            name: "CONTROLS".into(),
+            entries: vec![],
+        };
+        assert_eq!(node.emit(0), "CONTROLS = {}.freeze");
+    }
+
+    #[test]
+    fn frozen_const_hash_small() {
+        let node = RubyNode::FrozenConstHash {
+            name: "CONTROLS".into(),
+            entries: vec![
+                ("SC-7".into(), "NIST 800-53".into()),
+            ],
+        };
+        assert_eq!(node.emit(0), "CONTROLS = { 'SC-7' => 'NIST 800-53' }.freeze");
+    }
+
+    #[test]
+    fn frozen_const_hash_multiline() {
+        let node = RubyNode::FrozenConstHash {
+            name: "COMPLIANCE_CONTROLS".into(),
+            entries: vec![
+                ("SC-7".into(), "NIST 800-53".into()),
+                ("CIS-5.3".into(), "CIS AWS v3".into()),
+                ("PCI-1.2.1".into(), "PCI DSS 4.0".into()),
+            ],
+        };
+        let output = node.emit(2);
+        assert!(output.contains("COMPLIANCE_CONTROLS = {"));
+        assert!(output.contains("      'SC-7' => 'NIST 800-53',"));
+        assert!(output.contains("      'PCI-1.2.1' => 'PCI DSS 4.0',"));
+        assert!(output.contains("    }.freeze"));
+    }
+
+    #[test]
+    fn frozen_const_hash_deterministic() {
+        let entries = vec![
+            ("A".into(), "1".into()),
+            ("B".into(), "2".into()),
+            ("C".into(), "3".into()),
+        ];
+        let a = RubyNode::FrozenConstHash { name: "X".into(), entries: entries.clone() }.emit(0);
+        let b = RubyNode::FrozenConstHash { name: "X".into(), entries }.emit(0);
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    fn method_def_with_body() {
+        let node = RubyNode::MethodDef {
+            receiver: Some("self".into()),
+            name: "build".into(),
+            params: vec![
+                MethodParam::required("synth"),
+                MethodParam::with_default("config", "{}"),
+            ],
+            body: vec![
+                RubyNode::ExtendModule {
+                    receiver: None,
+                    module_path: "Pangea::Resources::AWS".into(),
+                    guard_method: Some("aws_vpc".into()),
+                },
+                RubyNode::Blank,
+                RubyNode::PangeaResourceCall {
+                    receiver: None,
+                    resource_type: "aws_ebs_encryption_by_default".into(),
+                    symbol: "ebs-encryption".into(),
+                    args: vec![("enabled".into(), "true".into())],
+                },
+            ],
+        };
+        let output = node.emit(0);
+        assert!(output.contains("def self.build(synth, config = {})"));
+        assert!(output.contains("self.extend(Pangea::Resources::AWS) unless respond_to?(:aws_vpc)"));
+        assert!(output.contains("aws_ebs_encryption_by_default"));
+        assert!(output.contains("end"));
     }
 }
