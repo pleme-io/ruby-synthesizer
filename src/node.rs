@@ -209,6 +209,40 @@ pub enum RubyNode {
         value: String,
     },
 
+    // ── General-purpose typed nodes ─────────────────────────────
+
+    /// Bare identifier: `some_var`, `self`, `true`, `region`
+    Ident(String),
+
+    /// Symbol literal: `:name`
+    SymbolLit(String),
+
+    /// Single-quoted string: `'value'`
+    StringLit(String),
+
+    /// Array literal: `["a", "b"]`
+    ArrayLit(Vec<RubyNode>),
+
+    /// Hash literal: `{ key: value, ... }` (symbol keys)
+    HashLit(Vec<(String, RubyNode)>),
+
+    /// Method call: `receiver.method(args)` or `method(args)`
+    /// Receiver is optional (bare function call if None).
+    Call {
+        receiver: Option<Box<RubyNode>>,
+        method: String,
+        args: Vec<RubyNode>,
+    },
+
+    /// Constant / module path: `Pangea::Architectures::SecureVpc`
+    ConstPath(Vec<String>),
+
+    /// `.merge(hash)` chain — `expr.merge(key: val)`
+    MergeCall {
+        receiver: Box<RubyNode>,
+        hash: Vec<(String, RubyNode)>,
+    },
+
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
     RSpecCode(String),
 
@@ -517,6 +551,52 @@ impl RubyNode {
                     format!("{pad}{method} {value}")
                 }
             }
+            // General-purpose typed nodes
+            Self::Ident(name) => format!("{pad}{name}"),
+            Self::SymbolLit(name) => format!("{pad}:{name}"),
+            Self::StringLit(val) => format!("{pad}'{val}'"),
+            Self::ArrayLit(elements) => {
+                let inner: Vec<String> = elements.iter().map(|e| e.emit(0)).collect();
+                format!("{pad}[{}]", inner.join(", "))
+            }
+            Self::HashLit(pairs) => {
+                if pairs.is_empty() {
+                    format!("{pad}{{}}")
+                } else if pairs.len() <= 3 {
+                    let inner: Vec<String> = pairs.iter()
+                        .map(|(k, v)| format!("{k}: {}", v.emit(0)))
+                        .collect();
+                    format!("{pad}{{ {} }}", inner.join(", "))
+                } else {
+                    let inner_pad = "  ".repeat(indent + 1);
+                    let mut out = format!("{pad}{{\n");
+                    for (k, v) in pairs {
+                        out.push_str(&format!("{inner_pad}{k}: {},\n", v.emit(0)));
+                    }
+                    out.push_str(&format!("{pad}}}"));
+                    out
+                }
+            }
+            Self::Call { receiver, method, args } => {
+                let rcv = match receiver {
+                    Some(r) => format!("{}.", r.emit(0)),
+                    None => String::new(),
+                };
+                if args.is_empty() {
+                    format!("{pad}{rcv}{method}")
+                } else {
+                    let arg_strs: Vec<String> = args.iter().map(|a| a.emit(0)).collect();
+                    format!("{pad}{rcv}{method}({})", arg_strs.join(", "))
+                }
+            }
+            Self::ConstPath(parts) => format!("{pad}{}", parts.join("::")),
+            Self::MergeCall { receiver, hash } => {
+                let inner: Vec<String> = hash.iter()
+                    .map(|(k, v)| format!("{k}: {}", v.emit(0)))
+                    .collect();
+                format!("{pad}{}.merge({})", receiver.emit(0), inner.join(", "))
+            }
+
             Self::RSpecCode(code) => format!("{pad}{code}"),
             #[allow(deprecated)]
             Self::Raw(code) => format!("{pad}{code}"),
