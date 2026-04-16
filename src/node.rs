@@ -342,7 +342,16 @@ impl RubyNode {
         match self {
             // Pragmas & comments
             Self::FrozenStringLiteral => "# frozen_string_literal: true".to_string(),
-            Self::Comment(text) => format!("{pad}# {text}"),
+            Self::Comment(text) => {
+                if text.contains('\n') {
+                    text.lines()
+                        .map(|line| format!("{pad}# {line}"))
+                        .collect::<Vec<_>>()
+                        .join("\n")
+                } else {
+                    format!("{pad}# {text}")
+                }
+            }
             Self::Blank => String::new(),
 
             // Imports
@@ -575,6 +584,9 @@ impl RubyNode {
             }
 
             Self::RequiredProviders { providers } => {
+                if providers.is_empty() {
+                    return format!("{pad}required_providers({{}})");
+                }
                 let providers_str = providers.iter()
                     .map(|(name, source)| format!("{pad}  {name}: {{ source: '{source}' }}"))
                     .collect::<Vec<_>>()
