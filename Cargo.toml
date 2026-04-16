@@ -13,6 +13,7 @@ iac-bridge = ["dep:iac-forge"]
 
 [dependencies]
 iac-forge = { git = "https://github.com/pleme-io/iac-forge", optional = true }
+synthesizer-core = { git = "https://github.com/pleme-io/synthesizer-core" }
 
 [dev-dependencies]
 proptest = "1"

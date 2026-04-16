@@ -38,6 +38,7 @@ mod types;
 mod emitter;
 mod rspec;
 pub mod builders;
+mod synthesizer_core_impl;
 
 #[cfg(feature = "iac-bridge")]
 pub mod iac_bridge;
