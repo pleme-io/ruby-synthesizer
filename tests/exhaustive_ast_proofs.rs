@@ -93,7 +93,7 @@ fn all_node_variants() -> Vec<RubyNode> {
             map_bool: vec![],
         },
         RubyNode::RegistryCall("Pangea::Resources::Test".into()),
-        RubyNode::Raw("puts 'hello'".into()),
+        RubyNode::RSpecCode("puts 'hello'".into()),
         RubyNode::Describe {
             subject: "'subject'".into(),
             body: vec![RubyNode::Blank],
@@ -109,7 +109,7 @@ fn all_node_variants() -> Vec<RubyNode> {
         },
         RubyNode::It {
             name: "does something".into(),
-            body: vec![RubyNode::Raw("assert true".into())],
+            body: vec![RubyNode::RSpecCode("assert true".into())],
         },
         RubyNode::It {
             name: "empty body".into(),
@@ -1081,15 +1081,6 @@ fn registry_call_exact_format() {
         node.emit(0),
         "Pangea::ResourceRegistry.register_module(Pangea::Resources::AWS)"
     );
-}
-
-/// Proof: Raw node passes through content exactly.
-#[test]
-fn raw_node_passthrough() {
-    let content = "some_method(:arg1, arg2) { |x| x + 1 }";
-    let node = RubyNode::Raw(content.into());
-    assert_eq!(node.emit(0), content);
-    assert_eq!(node.emit(1), format!("  {content}"));
 }
 
 proptest! {

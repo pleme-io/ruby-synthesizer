@@ -304,10 +304,6 @@ pub enum RubyNode {
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
     RSpecCode(String),
 
-    /// Raw Ruby expression — DEPRECATED: use a typed variant instead.
-    #[deprecated(note = "use a typed variant instead of Raw — Raw defeats provability")]
-    Raw(String),
-
     // ── RSpec ──────────────────────────────────────────────────────
 
     /// `RSpec.describe 'subject' do ... end`
@@ -739,8 +735,6 @@ impl RubyNode {
             Self::Alias { new_name, old_name } => format!("{pad}alias {new_name} {old_name}"),
 
             Self::RSpecCode(code) => format!("{pad}{code}"),
-            #[allow(deprecated)]
-            Self::Raw(code) => format!("{pad}{code}"),
 
             // RSpec
             Self::Describe { subject, body } => {

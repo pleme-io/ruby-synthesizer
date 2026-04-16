@@ -66,8 +66,6 @@ impl SynthesizerNode for RubyNode {
             Self::Yield(_) => 43,
             Self::Alias { .. } => 44,
             Self::RSpecCode(_) => 45,
-            #[allow(deprecated)]
-            Self::Raw(_) => 46,
             Self::Describe { .. } => 47,
             Self::SharedExamples { .. } => 48,
             Self::Context { .. } => 49,
@@ -81,13 +79,13 @@ impl SynthesizerNode for RubyNode {
 
 impl NoRawAttestation for RubyNode {
     fn attestation() -> &'static str {
-        "RubyNode::Raw carries #[deprecated] in src/node.rs and is scheduled \
-         for removal in Wave 3 of the compound-knowledge refactor. \
+        "RubyNode::Raw was REMOVED in Wave 3 of the compound-knowledge \
+         refactor. The no-raw invariant is now STRUCTURAL: RubyNode cannot \
+         represent arbitrary raw strings because no such variant exists — \
+         invalid states are unrepresentable at the type level. \
          tests/synthesizer_core_conformance.rs::no_raw_constructor_in_production_source \
-         scans src/ for Raw constructions; any accidental reintroduction \
-         fails CI. RSpecCode is a typed RSpec-expression wrapper, not a \
-         raw escape hatch. The #[allow(deprecated)] pin in \
-         synthesizer_core_impl.rs is the one intentional reference — a \
-         match arm pattern, not a construction."
+         remains as a defensive scanner guarding against accidental \
+         reintroduction. RSpecCode is a typed RSpec-expression wrapper — a \
+         legitimate typed bridge for test code, not a raw escape hatch."
     }
 }

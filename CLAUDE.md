@@ -168,7 +168,7 @@ Rust enums           compile-time valid     emit_file()          225 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
-- **declared** = Rust types (RubyNode 25 variants, RubyType 7 variants)
+- **declared** = Rust types (RubyNode 53 variants — Raw removed in Wave 3, invalid states unrepresentable; RubyType 7 variants)
 - **resolved** = AST construction (invalid nesting = compile error)
 - **converged** = `emit_file()` produces Ruby source (deterministic, trailing newline)
 - **verified** = 225 tests prove all invariants hold (lattice, algebra, bridge, structure)
