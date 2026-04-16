@@ -1035,7 +1035,7 @@ mod tests {
         };
         let output = node.emit(0);
         assert!(output.contains("def self.build(synth, config = {})"));
-        assert!(output.contains("self.extend(Pangea::Resources::AWS) unless respond_to?(:aws_vpc)"));
+        assert!(output.contains("self.extend(Pangea::Resources::AWS) unless self.respond_to?(:aws_vpc)"));
         assert!(output.contains("aws_ebs_encryption_by_default"));
         assert!(output.contains("end"));
     }
