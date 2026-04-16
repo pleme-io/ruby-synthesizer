@@ -30,6 +30,14 @@ impl MethodParam {
 ///
 /// Each variant maps to exactly one Ruby construct. The emitter produces
 /// correctly indented, syntactically valid Ruby from any tree of nodes.
+/// Accessor mode: reader, writer, or both.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AccessorMode {
+    Reader,
+    Writer,
+    Accessor,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RubyNode {
     // ── Pragmas & comments ─────────────────────────────────────────
@@ -280,6 +288,18 @@ pub enum RubyNode {
         name: String,
         entries: Vec<(String, String)>,
     },
+
+    /// `attr_reader :name, :email` / `attr_writer` / `attr_accessor`
+    AttrAccessor {
+        mode: AccessorMode,
+        names: Vec<String>,
+    },
+
+    /// `yield` or `yield value` — yields to a block
+    Yield(Option<Box<RubyNode>>),
+
+    /// `alias new_name old_name`
+    Alias { new_name: String, old_name: String },
 
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
     RSpecCode(String),
@@ -701,6 +721,23 @@ impl RubyNode {
                 }
             }
 
+            Self::AttrAccessor { mode, names } => {
+                let directive = match mode {
+                    AccessorMode::Reader => "attr_reader",
+                    AccessorMode::Writer => "attr_writer",
+                    AccessorMode::Accessor => "attr_accessor",
+                };
+                let symbols = names.iter().map(|n| format!(":{n}")).collect::<Vec<_>>().join(", ");
+                format!("{pad}{directive} {symbols}")
+            }
+
+            Self::Yield(value) => match value {
+                Some(expr) => format!("{pad}yield {}", expr.emit(0)),
+                None => format!("{pad}yield"),
+            },
+
+            Self::Alias { new_name, old_name } => format!("{pad}alias {new_name} {old_name}"),
+
             Self::RSpecCode(code) => format!("{pad}{code}"),
             #[allow(deprecated)]
             Self::Raw(code) => format!("{pad}{code}"),
@@ -1038,5 +1075,42 @@ mod tests {
         assert!(output.contains("self.extend(Pangea::Resources::AWS) unless self.respond_to?(:aws_vpc)"));
         assert!(output.contains("aws_ebs_encryption_by_default"));
         assert!(output.contains("end"));
+    }
+
+    // ── New variant tests ────────────────────────────────────
+
+    #[test]
+    fn attr_accessor() {
+        let node = RubyNode::AttrAccessor {
+            mode: AccessorMode::Accessor,
+            names: vec!["name".into(), "email".into()],
+        };
+        assert_eq!(node.emit(0), "attr_accessor :name, :email");
+    }
+
+    #[test]
+    fn attr_reader() {
+        let node = RubyNode::AttrAccessor {
+            mode: AccessorMode::Reader,
+            names: vec!["id".into()],
+        };
+        assert_eq!(node.emit(0), "attr_reader :id");
+    }
+
+    #[test]
+    fn yield_no_value() {
+        assert_eq!(RubyNode::Yield(None).emit(0), "yield");
+    }
+
+    #[test]
+    fn yield_with_value() {
+        let node = RubyNode::Yield(Some(Box::new(RubyNode::Ident("result".into()))));
+        assert_eq!(node.emit(0), "yield result");
+    }
+
+    #[test]
+    fn alias_directive() {
+        let node = RubyNode::Alias { new_name: "new_method".into(), old_name: "old_method".into() };
+        assert_eq!(node.emit(0), "alias new_method old_method");
     }
 }
