@@ -304,6 +304,23 @@ pub enum RubyNode {
     /// Arbitrary Ruby expression in RSpec context — typed bridge for test code.
     RSpecCode(String),
 
+    /// Multi-line verbatim Ruby body content from a higher-level generator.
+    ///
+    /// A narrow typed bridge (peer of [`RSpecCode`]) for content categories
+    /// that are produced as already-rendered Ruby by a proven upstream
+    /// generator — e.g., Pangea architecture method bodies composed from
+    /// simulation output, or Pangea template DSL bodies whose shape is
+    /// derived from proven WorkspaceSpec types.
+    ///
+    /// Emission: each line is prefixed with the current indent pad. Empty
+    /// input emits nothing. Internal indentation on each line is preserved
+    /// relative to the pad so that content generated at a known structural
+    /// depth composes correctly when nested inside typed containers.
+    ///
+    /// Do NOT use as a general escape hatch — it is a typed bridge for
+    /// specific generator pipelines, not a catchall.
+    BodyLines(Vec<String>),
+
     // ── RSpec ──────────────────────────────────────────────────────
 
     /// `RSpec.describe 'subject' do ... end`
@@ -736,6 +753,23 @@ impl RubyNode {
 
             Self::RSpecCode(code) => format!("{pad}{code}"),
 
+            Self::BodyLines(lines) => {
+                if lines.is_empty() {
+                    return String::new();
+                }
+                lines
+                    .iter()
+                    .map(|line| {
+                        if line.is_empty() {
+                            String::new()
+                        } else {
+                            format!("{pad}{line}")
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
+
             // RSpec
             Self::Describe { subject, body } => {
                 let mut out = format!("{pad}RSpec.describe {subject} do\n");
@@ -1106,5 +1140,37 @@ mod tests {
     fn alias_directive() {
         let node = RubyNode::Alias { new_name: "new_method".into(), old_name: "old_method".into() };
         assert_eq!(node.emit(0), "alias new_method old_method");
+    }
+
+    #[test]
+    fn body_lines_empty_emits_nothing() {
+        assert_eq!(RubyNode::BodyLines(vec![]).emit(2), "");
+    }
+
+    #[test]
+    fn body_lines_prefixes_each_line_with_pad() {
+        let node = RubyNode::BodyLines(vec![
+            "a = 1".into(),
+            "b = 2".into(),
+        ]);
+        assert_eq!(node.emit(1), "  a = 1\n  b = 2");
+    }
+
+    #[test]
+    fn body_lines_preserves_blank_lines_without_trailing_space() {
+        let node = RubyNode::BodyLines(vec![
+            "a = 1".into(),
+            String::new(),
+            "b = 2".into(),
+        ]);
+        assert_eq!(node.emit(1), "  a = 1\n\n  b = 2");
+    }
+
+    #[test]
+    fn body_lines_deterministic() {
+        let lines = vec!["x".into(), "y".into(), "z".into()];
+        let a = RubyNode::BodyLines(lines.clone()).emit(3);
+        let b = RubyNode::BodyLines(lines).emit(3);
+        assert_eq!(a, b);
     }
 }

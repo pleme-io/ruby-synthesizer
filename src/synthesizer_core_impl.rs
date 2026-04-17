@@ -66,6 +66,7 @@ impl SynthesizerNode for RubyNode {
             Self::Yield(_) => 43,
             Self::Alias { .. } => 44,
             Self::RSpecCode(_) => 45,
+            Self::BodyLines(_) => 46,
             Self::Describe { .. } => 47,
             Self::SharedExamples { .. } => 48,
             Self::Context { .. } => 49,
@@ -85,7 +86,10 @@ impl NoRawAttestation for RubyNode {
          invalid states are unrepresentable at the type level. \
          tests/synthesizer_core_conformance.rs::no_raw_constructor_in_production_source \
          remains as a defensive scanner guarding against accidental \
-         reintroduction. RSpecCode is a typed RSpec-expression wrapper — a \
-         legitimate typed bridge for test code, not a raw escape hatch."
+         reintroduction. RSpecCode and BodyLines are narrow typed bridges \
+         for specific content categories (RSpec test code, and multi-line \
+         body output from higher-level proven generators respectively); \
+         they are not raw escape hatches, and they cannot stand in for \
+         arbitrary text at arbitrary structural positions."
     }
 }
