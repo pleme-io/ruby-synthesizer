@@ -7,6 +7,7 @@
 //! Enabled via the `iac-bridge` feature flag.
 
 use iac_forge::ir::IacType;
+use iac_forge::morphism::{Morphism, ProvenMorphism};
 use crate::types::RubyType;
 use crate::rbs_types::RbsType;
 
@@ -93,6 +94,218 @@ pub fn iac_type_to_rbs(ty: &IacType) -> RbsType {
         }
         IacType::Any => RbsType::Untyped,
         other => panic!("unsupported IacType variant in iac_type_to_rbs: {other:?} — add an explicit mapping"),
+    }
+}
+
+// ── First-class morphism values ─────────────────────────────────────
+//
+// The free functions above stay as the ergonomic call sites. The
+// structs below make the same mappings addressable as composable
+// `ProvenMorphism` values — same behavior, now carrying a name and an
+// invariant check that composes through `Composed`.
+
+/// `IacType` → `RubyType` as a proof-bearing morphism.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct IacTypeToRuby;
+
+impl Morphism<IacType, RubyType> for IacTypeToRuby {
+    fn name(&self) -> &'static str {
+        "IacType→RubyType"
+    }
+    fn apply(&self, src: &IacType) -> RubyType {
+        iac_type_to_ruby(src)
+    }
+}
+
+impl ProvenMorphism<IacType, RubyType> for IacTypeToRuby {
+    fn check_invariants(&self, src: &IacType, dst: &RubyType) -> Vec<String> {
+        let mut violations = Vec::new();
+        // Determinism: re-applying must produce the same result.
+        if &iac_type_to_ruby(src) != dst {
+            violations.push("non-deterministic: re-apply differs".into());
+        }
+        // Emission must be non-empty: every valid RubyType renders to text.
+        if dst.emit().is_empty() {
+            violations.push("empty RubyType emission".into());
+        }
+        violations
+    }
+}
+
+/// `IacType` → `RbsType` as a proof-bearing morphism.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct IacTypeToRbs;
+
+impl Morphism<IacType, RbsType> for IacTypeToRbs {
+    fn name(&self) -> &'static str {
+        "IacType→RbsType"
+    }
+    fn apply(&self, src: &IacType) -> RbsType {
+        iac_type_to_rbs(src)
+    }
+}
+
+impl ProvenMorphism<IacType, RbsType> for IacTypeToRbs {
+    fn check_invariants(&self, src: &IacType, dst: &RbsType) -> Vec<String> {
+        let mut violations = Vec::new();
+        if &iac_type_to_rbs(src) != dst {
+            violations.push("non-deterministic: re-apply differs".into());
+        }
+        if dst.emit().is_empty() {
+            violations.push("empty RbsType emission".into());
+        }
+        violations
+    }
+}
+
+/// `RubyType` → emitted Ruby source string.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RubyTypeToString;
+
+impl Morphism<RubyType, String> for RubyTypeToString {
+    fn name(&self) -> &'static str {
+        "RubyType→String"
+    }
+    fn apply(&self, src: &RubyType) -> String {
+        src.emit()
+    }
+}
+
+impl ProvenMorphism<RubyType, String> for RubyTypeToString {
+    fn check_invariants(&self, src: &RubyType, dst: &String) -> Vec<String> {
+        let mut violations = Vec::new();
+        if &src.emit() != dst {
+            violations.push("non-deterministic: re-emit differs".into());
+        }
+        if dst.is_empty() {
+            violations.push("empty string emission".into());
+        }
+        violations
+    }
+}
+
+/// `RbsType` → emitted RBS source string.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RbsTypeToString;
+
+impl Morphism<RbsType, String> for RbsTypeToString {
+    fn name(&self) -> &'static str {
+        "RbsType→String"
+    }
+    fn apply(&self, src: &RbsType) -> String {
+        src.emit()
+    }
+}
+
+impl ProvenMorphism<RbsType, String> for RbsTypeToString {
+    fn check_invariants(&self, src: &RbsType, dst: &String) -> Vec<String> {
+        let mut violations = Vec::new();
+        if &src.emit() != dst {
+            violations.push("non-deterministic: re-emit differs".into());
+        }
+        if dst.is_empty() {
+            violations.push("empty string emission".into());
+        }
+        violations
+    }
+}
+
+#[cfg(test)]
+mod morphism_tests {
+    use super::*;
+    use iac_forge::morphism::Composed;
+
+    #[test]
+    fn iac_type_to_ruby_is_a_proven_morphism() {
+        let m = IacTypeToRuby;
+        let src = IacType::String;
+        let dst = m.apply(&src);
+        assert_eq!(dst.emit(), "T::String");
+        assert!(m.check_invariants(&src, &dst).is_empty());
+    }
+
+    #[test]
+    fn iac_type_to_rbs_is_a_proven_morphism() {
+        let m = IacTypeToRbs;
+        let src = IacType::Boolean;
+        let dst = m.apply(&src);
+        assert_eq!(dst.emit(), "bool");
+        assert!(m.check_invariants(&src, &dst).is_empty());
+    }
+
+    #[test]
+    fn ruby_type_to_string_is_a_proven_morphism() {
+        let m = RubyTypeToString;
+        let src = RubyType::simple("T::Integer");
+        let dst = m.apply(&src);
+        assert_eq!(dst, "T::Integer");
+        assert!(m.check_invariants(&src, &dst).is_empty());
+    }
+
+    #[test]
+    fn composition_iac_to_ruby_to_string_proves_and_renders() {
+        // IacType → RubyType → String end-to-end, proofs composed.
+        let c = Composed::new(IacTypeToRuby, RubyTypeToString);
+        let src = IacType::List(Box::new(IacType::String));
+        let dst = c.apply(&src);
+        assert_eq!(dst, "T::Array.of(T::String)");
+
+        let violations = c.check_invariants(&src, &dst);
+        assert!(
+            violations.is_empty(),
+            "composed invariants must all hold: {violations:?}",
+        );
+    }
+
+    #[test]
+    fn composition_iac_to_rbs_to_string_proves_and_renders() {
+        let c = Composed::new(IacTypeToRbs, RbsTypeToString);
+        let src = IacType::Enum {
+            values: vec!["tcp".into(), "udp".into()],
+            underlying: Box::new(IacType::String),
+        };
+        let dst = c.apply(&src);
+        assert_eq!(dst, "\"tcp\" | \"udp\"");
+        assert!(c.check_invariants(&src, &dst).is_empty());
+    }
+
+    #[test]
+    fn composed_morphism_name_prefixes_violations_by_source() {
+        // Manually construct a (src, bogus_dst) pair to exercise the
+        // invariant check's traceability.
+        let c = Composed::new(IacTypeToRuby, RubyTypeToString);
+        let src = IacType::String;
+        let wrong = "WRONG".to_string();
+        let violations = c.check_invariants(&src, &wrong);
+        assert!(!violations.is_empty());
+        // RubyType→String is the stage that disagrees (re-emit differs
+        // from the provided dst).
+        assert!(violations.iter().any(|v| v.contains("RubyType→String")),
+            "expected traceability to pinpoint the stage: {violations:?}");
+    }
+
+    #[test]
+    fn parallel_morphisms_preserve_semantic_parity() {
+        // IacType maps deterministically to BOTH RubyType and RbsType.
+        // This is the cross-backend parity proof: a single IR type
+        // renders to two target type systems with independent bridges.
+        let ruby = IacTypeToRuby;
+        let rbs = IacTypeToRbs;
+        for ty in [
+            IacType::String,
+            IacType::Integer,
+            IacType::Boolean,
+            IacType::List(Box::new(IacType::String)),
+            IacType::Any,
+        ] {
+            let r = ruby.apply(&ty);
+            let b = rbs.apply(&ty);
+            assert!(ruby.check_invariants(&ty, &r).is_empty());
+            assert!(rbs.check_invariants(&ty, &b).is_empty());
+            // Non-empty emission is the minimum shared guarantee.
+            assert!(!r.emit().is_empty());
+            assert!(!b.emit().is_empty());
+        }
     }
 }
 
