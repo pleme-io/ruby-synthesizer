@@ -8,6 +8,7 @@
 
 use iac_forge::ir::IacType;
 use crate::types::RubyType;
+use crate::rbs_types::RbsType;
 
 /// Convert an IaC IR type to its Ruby Dry::Types representation.
 ///
@@ -48,6 +49,50 @@ pub fn iac_type_to_ruby(ty: &IacType) -> RubyType {
         }
         IacType::Any => RubyType::Any,
         other => panic!("unsupported IacType variant in iac_type_to_ruby: {other:?} — add an explicit mapping"),
+    }
+}
+
+/// Convert an IaC IR type to its RBS (Ruby Signature) representation.
+///
+/// Parallel to `iac_type_to_ruby`, preserving the same invariants:
+/// - **Injective**: different IacTypes produce different RbsTypes
+/// - **Total**: every IacType variant handled
+/// - **Deterministic**: same input → same output
+///
+/// Mapping:
+/// `String → String`, `Integer → Integer`, `Float/Numeric → Float`
+/// (Numeric folds to `Integer | Float`), `Boolean → bool`,
+/// `List/Set → Array[inner]`, `Map/Object → Hash[untyped, untyped]`,
+/// `Enum → union of string literals` (when values present),
+/// `Any → untyped`.
+#[must_use]
+pub fn iac_type_to_rbs(ty: &IacType) -> RbsType {
+    match ty {
+        IacType::String => RbsType::named("String"),
+        IacType::Integer => RbsType::named("Integer"),
+        IacType::Float => RbsType::named("Float"),
+        IacType::Numeric => {
+            RbsType::union(vec![RbsType::named("Integer"), RbsType::named("Float")])
+        }
+        IacType::Boolean => RbsType::named("bool"),
+        IacType::List(inner) | IacType::Set(inner) => RbsType::array(iac_type_to_rbs(inner)),
+        IacType::Map(_) | IacType::Object { .. } => {
+            RbsType::hash(RbsType::named("Symbol"), RbsType::Untyped)
+        }
+        IacType::Enum { values, underlying } => {
+            if values.is_empty() {
+                iac_type_to_rbs(underlying)
+            } else {
+                RbsType::union(
+                    values
+                        .iter()
+                        .map(|v| RbsType::string_literal(v))
+                        .collect(),
+                )
+            }
+        }
+        IacType::Any => RbsType::Untyped,
+        other => panic!("unsupported IacType variant in iac_type_to_rbs: {other:?} — add an explicit mapping"),
     }
 }
 
@@ -202,5 +247,126 @@ mod tests {
         let list_str = iac_type_to_ruby(&IacType::List(Box::new(IacType::String)));
         let list_int = iac_type_to_ruby(&IacType::List(Box::new(IacType::Integer)));
         assert_ne!(list_str.emit(), list_int.emit());
+    }
+
+    // ── RBS bridge ────────────────────────────────────────────────
+
+    #[test]
+    fn rbs_string_maps_to_string() {
+        assert_eq!(iac_type_to_rbs(&IacType::String).emit(), "String");
+    }
+
+    #[test]
+    fn rbs_integer_maps_to_integer() {
+        assert_eq!(iac_type_to_rbs(&IacType::Integer).emit(), "Integer");
+    }
+
+    #[test]
+    fn rbs_float_maps_to_float() {
+        assert_eq!(iac_type_to_rbs(&IacType::Float).emit(), "Float");
+    }
+
+    #[test]
+    fn rbs_numeric_maps_to_union() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::Numeric).emit(),
+            "Integer | Float",
+        );
+    }
+
+    #[test]
+    fn rbs_boolean_maps_to_lowercase_bool() {
+        assert_eq!(iac_type_to_rbs(&IacType::Boolean).emit(), "bool");
+    }
+
+    #[test]
+    fn rbs_list_of_strings() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::List(Box::new(IacType::String))).emit(),
+            "Array[String]",
+        );
+    }
+
+    #[test]
+    fn rbs_set_of_integers() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::Set(Box::new(IacType::Integer))).emit(),
+            "Array[Integer]",
+        );
+    }
+
+    #[test]
+    fn rbs_nested_list() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::List(Box::new(IacType::List(Box::new(IacType::String))))).emit(),
+            "Array[Array[String]]",
+        );
+    }
+
+    #[test]
+    fn rbs_map_to_hash() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::Map(Box::new(IacType::String))).emit(),
+            "Hash[Symbol, untyped]",
+        );
+    }
+
+    #[test]
+    fn rbs_object_to_hash() {
+        assert_eq!(
+            iac_type_to_rbs(&IacType::Object {
+                name: "x".into(),
+                fields: vec![],
+            }).emit(),
+            "Hash[Symbol, untyped]",
+        );
+    }
+
+    #[test]
+    fn rbs_enum_with_values_string_literal_union() {
+        let ty = IacType::Enum {
+            values: vec!["tcp".into(), "udp".into()],
+            underlying: Box::new(IacType::String),
+        };
+        assert_eq!(iac_type_to_rbs(&ty).emit(), "\"tcp\" | \"udp\"");
+    }
+
+    #[test]
+    fn rbs_enum_empty_degenerates_to_underlying() {
+        let ty = IacType::Enum {
+            values: vec![],
+            underlying: Box::new(IacType::String),
+        };
+        assert_eq!(iac_type_to_rbs(&ty).emit(), "String");
+    }
+
+    #[test]
+    fn rbs_enum_single_value_degenerates_to_literal() {
+        let ty = IacType::Enum {
+            values: vec!["only".into()],
+            underlying: Box::new(IacType::String),
+        };
+        assert_eq!(iac_type_to_rbs(&ty).emit(), "\"only\"");
+    }
+
+    #[test]
+    fn rbs_any_maps_to_untyped() {
+        assert_eq!(iac_type_to_rbs(&IacType::Any).emit(), "untyped");
+    }
+
+    #[test]
+    fn rbs_deterministic() {
+        let ty = IacType::List(Box::new(IacType::Enum {
+            values: vec!["a".into(), "b".into()],
+            underlying: Box::new(IacType::String),
+        }));
+        assert_eq!(iac_type_to_rbs(&ty).emit(), iac_type_to_rbs(&ty).emit());
+    }
+
+    #[test]
+    fn rbs_injective_list_vs_set_inner() {
+        let a = iac_type_to_rbs(&IacType::List(Box::new(IacType::String)));
+        let b = iac_type_to_rbs(&IacType::List(Box::new(IacType::Integer)));
+        assert_ne!(a.emit(), b.emit());
     }
 }

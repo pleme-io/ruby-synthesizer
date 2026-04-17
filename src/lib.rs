@@ -35,6 +35,8 @@
 
 mod node;
 mod types;
+mod rbs_types;
+mod rbs_builder;
 mod emitter;
 mod rspec;
 pub mod builders;
@@ -45,5 +47,7 @@ pub mod iac_bridge;
 
 pub use node::{MethodParam, PangeaOutputType, RubyNode};
 pub use types::RubyType;
+pub use rbs_types::RbsType;
+pub use rbs_builder::{RbsClassBuilder, TypesRbsFileBuilder};
 pub use emitter::emit_file;
 pub use rspec::RSpecBuilder;
