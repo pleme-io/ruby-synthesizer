@@ -2,24 +2,37 @@
 
 Typed AST for structurally correct Ruby code generation from Rust.
 Ruby is a build artifact -- authored in Rust, materialized as Ruby,
-proven by 225 tests. Syntax errors are impossible at the Rust compiler level.
+proven by 360 tests. Syntax errors are impossible at the Rust compiler level.
 
 ## How It Is Consumed
 
 `pangea-forge` (the Pangea backend in the iac-forge pipeline) depends on
-ruby-synthesizer to generate all Ruby DSL code for Pangea providers
-(pangea-aws, pangea-akeyless, pangea-cloudflare, etc.). The flow is:
+ruby-synthesizer to generate BOTH Ruby and RBS (Ruby Signature) code for
+Pangea providers (pangea-aws, pangea-akeyless, pangea-cloudflare, etc.). The flow is:
 
 ```
 TOML resource spec -> iac-forge IR (IacType, IacResource)
     -> pangea-forge (Backend impl)
-        -> ruby-synthesizer (TypesFileBuilder, ResourceFileBuilder)
+        -> ruby-synthesizer (TypesFileBuilder, ResourceFileBuilder,
+                             TypesRbsFileBuilder)
             -> emitted Ruby (types.rb, resource.rb, spec.rb)
+            -> emitted RBS (types.rbs)  [steep-checkable signatures]
 ```
 
-pangea-forge calls `TypesFileBuilder` for types files, `ResourceFileBuilder`
-for resource files, and `RSpecBuilder` for test files. The IaC bridge
-(`iac_type_to_ruby`) converts `IacType` to `RubyType` at the boundary.
+pangea-forge calls:
+- `TypesFileBuilder` for types.rb (Dry::Struct attribute classes)
+- `ResourceFileBuilder` for resource.rb (ResourceBuilder DSL)
+- `TypesRbsFileBuilder` for types.rbs (RBS type signatures — paired with
+  the Dry::Types version, closes the type gap at the render edge)
+- `RSpecBuilder` for test files
+
+Two IR bridges:
+- `iac_type_to_ruby(&IacType) -> RubyType` — Dry::Types mapping
+- `iac_type_to_rbs(&IacType) -> RbsType` — RBS mapping
+
+Both are first-class `ProvenMorphism` values via `IacTypeToRuby`,
+`IacTypeToRbs`, `RubyTypeToString`, `RbsTypeToString`. Compose with
+`iac_forge::morphism::Composed` to carry proofs end-to-end.
 
 ## The Compiler Prevents Invalid Ruby
 
@@ -127,7 +140,7 @@ ruby_parent!()           // -> None
 ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 ```
 
-## What's Proven (225 tests)
+## What's Proven (360 tests)
 
 | Category | Tests | File | What |
 |----------|-------|------|------|
@@ -149,14 +162,127 @@ ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 
 ## IaC Bridge (feature: iac-bridge)
 
-Maps `iac_forge::ir::IacType` -> `RubyType` with proven parity:
-- **Injective**: different inputs produce different outputs
-- **Total**: every variant handled (unknown = explicit panic with message)
-- **Deterministic**: same input always produces same output
+Two bridges, same invariants (injective, total, deterministic):
 
-Mapping: String->T::String, Integer->T::Integer, Float->T::Coercible::Float,
-Numeric->union(Integer|Float), Boolean->T::Bool, List/Set->Array, Map/Object->Hash,
-Enum->Constrained, Any->T::Any.
+### `iac_type_to_ruby(&IacType) -> RubyType`
+
+Mapping to Dry::Types: String→T::String, Integer→T::Integer,
+Float→T::Coercible::Float, Numeric→union(Integer|Float), Boolean→T::Bool,
+List/Set→Array, Map/Object→Hash, Enum→Constrained, Any→T::Any.
+
+### `iac_type_to_rbs(&IacType) -> RbsType`
+
+Mapping to RBS: String→String, Integer→Integer, Float→Float,
+Numeric→union(Integer|Float), Boolean→bool, List/Set→Array[T],
+Map/Object→Hash[Symbol, untyped], Enum→string-literal union of values
+(or underlying if empty), Any→untyped.
+
+### Bridges as ProvenMorphisms
+
+`IacTypeToRuby`, `IacTypeToRbs`, `RubyTypeToString`, `RbsTypeToString`
+are all named, first-class `ProvenMorphism` values. Compose them to
+chain proofs:
+
+```rust
+use iac_forge::morphism::{Composed, Morphism, ProvenMorphism};
+use ruby_synthesizer::iac_bridge::{IacTypeToRuby, RubyTypeToString};
+
+let chain = Composed::new(IacTypeToRuby, RubyTypeToString);
+let emitted = chain.apply(&IacType::List(Box::new(IacType::String)));
+assert_eq!(emitted, "T::Array.of(T::String)");
+// check_invariants returns violation list prefixed by source morphism name
+assert!(chain.check_invariants(&src, &emitted).is_empty());
+```
+
+## RbsType
+
+Parallels `RubyType` for RBS signature output. 7 variants:
+`Named(String)`, `Array(Box<RbsType>)`, `Hash(key, value)`,
+`Union(Vec<RbsType>)`, `StringLiteral(String)`, `Nilable(Box<RbsType>)`,
+`Untyped`.
+
+Emitted forms (proven by 14 unit tests + 12 proptest runs):
+- `Named("String")` → `String`
+- `Array(Named("Integer"))` → `Array[Integer]`
+- `Hash(Named("Symbol"), Untyped)` → `Hash[Symbol, untyped]`
+- `Union([StringLiteral("tcp"), StringLiteral("udp")])` → `"tcp" | "udp"`
+- `Nilable(Named("String"))` → `String?`
+- `Untyped` → `untyped`
+
+Nilable is idempotent at construction (`nilable(nilable(x)) == nilable(x)`);
+Union of 1 variant degenerates to that variant.
+
+## TypesRbsFileBuilder
+
+Parallels `TypesFileBuilder` for RBS files. Same structural discipline:
+module chain enforced, class-only-in-module, attribute-only-in-class,
+required attributes emit non-nilable, optional attributes emit nilable.
+
+```rust
+TypesRbsFileBuilder::new("datadog")
+    .class("MonitorAttributes", |c| {
+        c.attribute("name", RbsType::named("String"), true)         // required
+         .attribute("tags", RbsType::array(RbsType::named("String")), false)  // optional
+    })
+    .emit()
+```
+
+Produces:
+```rbs
+# Code generated by pangea-forge. DO NOT EDIT.
+module Pangea
+  module Resources
+    module Datadog
+      module Types
+        class MonitorAttributes < Pangea::Resources::BaseAttributes
+          attr_reader name: String
+          attr_reader tags: Array[String]?
+        end
+      end
+    end
+  end
+end
+```
+
+## BodyLines (Typed Bridge for Multi-Line Generator Output)
+
+`RubyNode::BodyLines(Vec<String>)` is a narrow typed bridge (peer of
+`RSpecCode`) for multi-line content produced by higher-level generators —
+architecture method bodies composed from simulation output, template DSL
+bodies derived from WorkspaceSpec, etc. Each input line is prefixed with
+the current indent pad; blank lines stay blank.
+
+**Not a general escape hatch.** The `NoRawAttestation` contract still
+holds: `RubyNode::Raw` is gone, BodyLines is a narrow bridge for specific
+content categories. Downstream consumers (pangea-forge) use BodyLines
+for method/template bodies; everything else lives in structured nodes.
+
+## Canonical Sexpr Interchange
+
+Under the `iac-bridge` feature, every `RubyType` and `RbsType` implements
+`iac_forge::sexpr::{ToSExpr, FromSExpr}`. Round-trip is lossless and
+deterministic:
+
+```rust
+use iac_forge::sexpr::{SExpr, ToSExpr, FromSExpr};
+
+let ty = RubyType::array(RubyType::simple("T::String"));
+let s = ty.to_sexpr();
+assert_eq!(s.emit(), "(array (simple \"T::String\"))");
+
+let parsed = RubyType::from_sexpr(&SExpr::parse(&s.emit()).unwrap()).unwrap();
+assert_eq!(parsed, ty);
+```
+
+Single-variant union on parse degenerates to the wrapped variant,
+matching the constructor invariant.
+
+## Cross-Language Content-Hash Vectors
+
+`tests/cross_lang_vectors.rs` pins canonical emissions + BLAKE3 hex for
+every RubyType and RbsType variant (17 vectors). Hashes verified
+independently via `b3sum 1.8.4`. Any reimplementation that correctly
+emits canonical sexpr + BLAKE3-hashes will produce these same hashes.
 
 ## Convergence Theory
 
@@ -168,7 +294,9 @@ Rust enums           compile-time valid     emit_file()          225 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
-- **declared** = Rust types (RubyNode 53 variants — Raw removed in Wave 3, invalid states unrepresentable; RubyType 7 variants)
+- **declared** = Rust types (RubyNode 54 variants — Raw removed in Wave 3,
+  BodyLines added as narrow typed bridge; RubyType 7 variants; RbsType 7 variants)
 - **resolved** = AST construction (invalid nesting = compile error)
-- **converged** = `emit_file()` produces Ruby source (deterministic, trailing newline)
-- **verified** = 225 tests prove all invariants hold (lattice, algebra, bridge, structure)
+- **converged** = `emit_file()` produces Ruby/RBS source (deterministic, trailing newline)
+- **verified** = 360 tests prove all invariants hold (lattice, algebra, bridge,
+  structure, sexpr round-trip, cross-language content-hash vectors)
