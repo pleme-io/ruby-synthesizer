@@ -45,6 +45,11 @@ mod synthesizer_core_impl;
 #[cfg(feature = "iac-bridge")]
 pub mod iac_bridge;
 
+/// ToSExpr / FromSExpr impls for RubyType and RbsType (canonical
+/// interchange shared with iac-forge).
+#[cfg(feature = "iac-bridge")]
+mod sexpr;
+
 pub use node::{MethodParam, PangeaOutputType, RubyNode};
 pub use types::RubyType;
 pub use rbs_types::RbsType;
