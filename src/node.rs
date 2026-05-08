@@ -88,6 +88,31 @@ pub enum RubyNode {
         value: String,
     },
 
+    /// `NAME = <typed RubyNode expression>` — typed peer of
+    /// [`ConstAssign`]. Use when the right-hand side is a structured
+    /// value (ArrayLit, HashLit, Call chain) that would otherwise
+    /// require a stringly-typed escape. Emits the value via
+    /// `RubyNode::emit_expr` at the same indent as `ConstAssign`.
+    ///
+    /// Example:
+    /// ```ignore
+    /// use ruby_synthesizer::{RubyNode};
+    /// let node = RubyNode::ConstAssignNode {
+    ///     name: "DEFAULT_NODE_GROUPS".into(),
+    ///     value: Box::new(RubyNode::Call {
+    ///         receiver: Some(Box::new(RubyNode::ArrayLit(vec![]))),
+    ///         method: "freeze".into(),
+    ///         args: vec![],
+    ///     }),
+    /// };
+    /// assert!(node.emit(0).contains("DEFAULT_NODE_GROUPS"));
+    /// assert!(node.emit(0).contains(".freeze"));
+    /// ```
+    ConstAssignNode {
+        name: String,
+        value: Box<RubyNode>,
+    },
+
     /// `attribute :name, Type` or `attribute? :name, Type.optional`
     Attribute {
         name: String,
@@ -255,6 +280,12 @@ pub enum RubyNode {
 
     /// Hash literal: `{ key: value, ... }` (symbol keys)
     HashLit(Vec<(String, RubyNode)>),
+
+    /// Hash-rocket literal: `{ 'key' => value, ... }` — emits the keys
+    /// as single-quoted string literals with `=>` separators. Use when
+    /// keys contain characters not legal in a Ruby symbol (dots,
+    /// slashes, hyphens): `'pleme.io/pool' => 'system'`.
+    HashRocketLit(Vec<(String, RubyNode)>),
 
     /// Method call: `receiver.method(args)` or `method(args)`
     /// Receiver is optional (bare function call if None).
@@ -425,6 +456,16 @@ impl RubyNode {
             Self::Include(module_name) => format!("{pad}include {module_name}"),
 
             Self::ConstAssign { name, value } => format!("{pad}{name} = {value}"),
+
+            Self::ConstAssignNode { name, value } => {
+                // Emit the value at the same indent level, then splice
+                // the `<NAME> = ` prefix onto its first line so
+                // multi-line literals (ArrayLit with nested HashLit)
+                // align under the constant without an extra blank line.
+                let emitted = value.emit(indent);
+                let stripped = emitted.strip_prefix(&pad).unwrap_or(&emitted);
+                format!("{pad}{name} = {stripped}")
+            }
 
             Self::Attribute { name, type_expr, required } => {
                 let keyword = if *required { "attribute" } else { "attribute?" };
@@ -668,6 +709,24 @@ impl RubyNode {
                     let mut out = format!("{pad}{{\n");
                     for (k, v) in pairs {
                         out.push_str(&format!("{inner_pad}{k}: {},\n", v.emit(0)));
+                    }
+                    out.push_str(&format!("{pad}}}"));
+                    out
+                }
+            }
+            Self::HashRocketLit(pairs) => {
+                if pairs.is_empty() {
+                    format!("{pad}{{}}")
+                } else if pairs.len() <= 3 {
+                    let inner: Vec<String> = pairs.iter()
+                        .map(|(k, v)| format!("'{k}' => {}", v.emit(0)))
+                        .collect();
+                    format!("{pad}{{ {} }}", inner.join(", "))
+                } else {
+                    let inner_pad = "  ".repeat(indent + 1);
+                    let mut out = format!("{pad}{{\n");
+                    for (k, v) in pairs {
+                        out.push_str(&format!("{inner_pad}'{k}' => {},\n", v.emit(0)));
                     }
                     out.push_str(&format!("{pad}}}"));
                     out

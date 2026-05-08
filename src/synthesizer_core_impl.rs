@@ -30,6 +30,8 @@ impl SynthesizerNode for RubyNode {
             Self::Class { .. } => 7,
             Self::Include(_) => 8,
             Self::ConstAssign { .. } => 9,
+            Self::ConstAssignNode { .. } => 9,
+            Self::HashRocketLit(_) => 9,
             Self::Attribute { .. } => 10,
             Self::DefineResource { .. } => 11,
             Self::DefineData { .. } => 12,
