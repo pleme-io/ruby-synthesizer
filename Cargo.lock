@@ -190,7 +190,7 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "iac-forge"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/iac-forge#0e8347fc3d781dafd7f6570a2e4dd0dbc6468c4e"
+source = "git+https://github.com/pleme-io/iac-forge#c592b447755b62f9c3c7c5181cdd7b4508cae3df"
 dependencies = [
  "blake3",
  "meimei",
@@ -252,8 +252,8 @@ checksum = "5e5032e24019045c762d3c0f28f5b6b8bbf38563a65908389bf7978758920897"
 
 [[package]]
 name = "meimei"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/meimei#8d0eeb2ba75b02e2e68c8b6ea5d5ae2f87f3180e"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/meimei#a3865aca03012893719fa4d093e20de4065fa58b"
 
 [[package]]
 name = "memchr"
@@ -278,8 +278,8 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "openapi-forge"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/openapi-forge#2a1ae48bdac27be8cb76767a9e70e47e0e60f6e6"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/openapi-forge#acb030774cfbad58192a5e5e5ed2b90133200136"
 dependencies = [
  "indexmap",
  "sekkei",
@@ -474,8 +474,8 @@ checksum = "9774ba4a74de5f7b1c1451ed6cd5285a32eddb5cccb8cc655a4e50009e06477f"
 
 [[package]]
 name = "sekkei"
-version = "0.1.0"
-source = "git+https://github.com/pleme-io/sekkei#6f05014b08bd1480ecd992f929b33f74677cecf1"
+version = "0.1.1"
+source = "git+https://github.com/pleme-io/sekkei#f9d27e9971bd0be7729a492797efa65711cb6171"
 dependencies = [
  "serde",
  "serde_json",
@@ -574,12 +574,12 @@ dependencies = [
 [[package]]
 name = "synthesizer-core"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/synthesizer-core#affb9cc46668f779a4d8a141964bbbe67d8078b7"
+source = "git+https://github.com/pleme-io/synthesizer-core#fa3d87b8cc551ace2545ee3da416061645ade435"
 
 [[package]]
 name = "takumi"
 version = "0.1.0"
-source = "git+https://github.com/pleme-io/takumi#ad741fec436581da262a77a5a5cf58ca2137ee3b"
+source = "git+https://github.com/pleme-io/takumi#234adbbe0e3f75239cba39b7fe033d9d6806b162"
 dependencies = [
  "indexmap",
  "sekkei",
