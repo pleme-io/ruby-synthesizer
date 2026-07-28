@@ -1,7 +1,99 @@
+# ruby-synthesizer CI — runs the test suite on every push and PR.
+#
+# WHY THIS IS NOT THE 3-LINE `cargo-ci.yml` SHIM (do not "simplify" it back):
+#
+#   1. `pleme-io/substrate/.github/workflows/cargo-ci.yml` runs `nix flake
+#      check`. THIS REPO HAS NO `flake.nix` AT ALL — `git ls-files | grep
+#      flake` returns nothing — so the shim errored out in ~5 seconds having
+#      run ZERO of the 356 tests below. The `ci` workflow last ran
+#      2026-05-21, failed in 5s, and was never triggered again: 67 days of a
+#      gate that was permanently red and therefore unread, which also masked
+#      any NEW failure landing behind it (pleme-io CLAUDE.md, Tier ⊥ —
+#      "a gate never observed to fail may be checking nothing", subclass
+#      "Abandoned Red").
+#
+#   2. DEP SHAPE DECIDES THE REST, and it puts this repo between the two
+#      fleet precedents:
+#        * NOT `pangea-forge`'s shape — this repo has NO sibling
+#          `path = "../…"` deps, so it needs none of its 18 sibling
+#          checkouts and no `working-directory` juggling.
+#        * NOT `magma`'s bare `cargo test` either — both deps
+#          (`synthesizer-core`, `iac-forge`) are PRIVATE pleme-io GIT
+#          dependencies, which the default `GITHUB_TOKEN` cannot fetch.
+#      So: magma's simplicity, plus exactly one borrowed block — the
+#      BOT_PAT + `url.insteadOf` credential setup lifted verbatim from
+#      `pleme-io/pangea-forge`'s ci.yml. Nothing else is carried over.
+#
+#   3. `--all-features` is REQUIRED, not a nicety. `tests/bridge_parity.rs`,
+#      `tests/cross_lang_vectors.rs`, `tests/morphism_laws.rs` and
+#      `tests/sexpr_round_trip.rs` are unconditionally iac-bridge tests, but
+#      `iac-bridge` is NOT in `[features] default`. Under the default
+#      feature set those four targets fail to COMPILE — 22 errors (E0432
+#      unresolved import `ruby_synthesizer::iac_bridge`, E0599 missing
+#      `to_sexpr`/`from_sexpr`, E0277 unsatisfied `Morphism` bound). The fix
+#      is to turn the feature ON so the tests RUN; adding a file-level
+#      `#![cfg(feature = ...)]` guard would make them compile by making them
+#      silently vanish, which is the same vacuous-guard defect in a new coat.
+#
+#   4. `--all-targets` is load-bearing — the exact lesson pangea-forge paid
+#      59 days for: `cargo build --lib` stays green while a TEST target does
+#      not compile, so a plain `cargo test` can pass over a suite that never
+#      built. It also EXCLUDES doctests, which is why `cargo test --doc` is
+#      a separate step below: `src/lib.rs` ships a real compile-checked
+#      usage example that `--all-targets` would silently skip.
+#
+# NOT GATED HERE, deliberately: `cargo fmt --check` is currently red
+# (~1951 diff lines). Reformatting the repo is a separate change; wiring a
+# known-red cosmetic gate now would re-create the exact "nobody reads it"
+# condition this workflow exists to remove.
+
 name: ci
 
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
 
 jobs:
-  check:
-    uses: pleme-io/substrate/.github/workflows/cargo-ci.yml@main
+  test:
+    name: cargo test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      # Cargo pulls `synthesizer-core` and `iac-forge` as PRIVATE git
+      # dependencies. Force the real git binary so the url.insteadOf rewrite
+      # below is honored — cargo's bundled libgit2 backend ignores it.
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+
+    steps:
+      - name: Checkout ruby-synthesizer
+        uses: actions/checkout@v4
+        with:
+          # This workflow never pushes, and a persisted this-repo credential
+          # would otherwise shadow the BOT_PAT rewrite below by prefix match.
+          persist-credentials: false
+
+      - name: Configure git credentials for private cargo git dependencies
+        env:
+          GIT_AUTH_TOKEN: "${{ secrets.BOT_PAT }}"
+        run: |
+          git config --global url."https://x-access-token:${GIT_AUTH_TOKEN}@github.com/".insteadOf "https://github.com/"
+          git config --global --unset-all http.https://github.com/.extraheader || true
+
+      - name: rustc / cargo version
+        run: cargo --version && rustc --version
+
+      # Guards the surface a consumer gets WITHOUT the optional iac-bridge
+      # feature — the one thing the `--all-features` run below cannot see.
+      - name: cargo build --lib (default features)
+        run: cargo build --lib
+
+      - name: cargo test --all-targets --all-features
+        run: cargo test --all-targets --all-features
+
+      # `--all-targets` excludes doctests; src/lib.rs ships a real one.
+      - name: cargo test --doc --all-features
+        run: cargo test --doc --all-features

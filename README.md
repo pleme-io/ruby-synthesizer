@@ -3,7 +3,7 @@
 Typed AST for structurally correct Ruby code generation from Rust.
 
 Ruby is a build artifact -- authored in Rust, materialized as Ruby,
-proven by 173 tests. Syntax errors are **impossible** at the Rust compiler level.
+proven by 360 tests. Syntax errors are **impossible** at the Rust compiler level.
 
 ## The Key Insight
 
@@ -206,24 +206,27 @@ Proven properties: **injective** (different inputs produce different outputs),
 
 See [docs/iac-bridge.md](docs/iac-bridge.md) for the full mapping analysis.
 
-## What's Proven (173 tests)
+## What's Proven (360 tests)
 
-| Category | Tests | File | What |
-|----------|-------|------|------|
-| Lattice properties | 13 | `tests/lattice.rs` | Optional lifting, constrained narrowing, union bounds, monotonicity, reflexivity, idempotent join, transitive chains |
-| Type algebra | 14 | `tests/type_algebra.rs` | Injectivity of array/optional/constrained/simple, constants (Hash/Any), structural patterns, no-newline, printable ASCII, union separator count |
-| Bridge parity | 12 | `tests/bridge_parity.rs` | IacType -> RubyType totality, determinism, composition preservation, nested depth |
-| Builder structure | 21 | `tests/structural.rs` | TypesFile + ResourceFile invariants (frozen pragma, module path, Dry.Types include, BaseAttributes, attribute validity, balanced blocks) |
-| Compiler guarantees | 30 | `tests/compiler_guarantees.rs` | Non-empty output, frozen pragma first, balanced blocks, determinism, idempotent optional, valid Dry::Types, constrained preservation, array nesting, section ordering, indentation, clean ASCII, no trailing whitespace, trailing newline |
-| Convergence stages | 11 | `tests/convergence_stages.rs` | declared->resolved->converged pipeline, emit newline, determinism, monotonicity, macro parity |
-| RSpec builder | 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings, expect assertions, it_behaves_like |
-| Property tests | 16 | `tests/properties.rs` | Balanced parens, deterministic emit, idempotent optional, no double optional, non-empty emit, balanced blocks, consistent indentation, attribute patterns, union invariants, macro parity |
-| Unit (node) | 9 | `src/node.rs` | Individual node emission: frozen literal, require, module, class, attribute, define_resource, inline module, rspec, registry call |
-| Unit (types) | 9 | `src/types.rs` | Type emission: simple, array, nested array, union, constrained, optional, optional array, any, hash |
-| Unit (builders) | 10 | `src/builders.rs` | Builder output: frozen pragma, base attributes, module/class, optional attrs, AWS module, define_resource, registry call, includes, map categories, pascal case |
-| Unit (iac_bridge) | 18 | `src/iac_bridge.rs` | Exhaustive variant coverage (13) + parity with pangea-forge (3) + injectivity proofs (2) |
-| Unit (emitter) | 1 | `src/emitter.rs` | Complete types file emission structure |
-| Unit (rspec) | 3 | `src/rspec.rs` | Fluent describe builder, it with expect, macro module with class |
+The suite needs the non-default `iac-bridge` feature — four test targets are
+unconditionally bridge tests and do not compile without it:
+
+```sh
+cargo test --all-targets --all-features   # 356 passed (222 integration + 134 unit)
+cargo test --doc         --all-features   #   4 passed, 1 ignored
+                                          # → 360 passing
+```
+
+Both commands are the CI gate (`.github/workflows/ci.yml`). The per-file
+breakdown lives in [CLAUDE.md](CLAUDE.md#whats-proven-360-tests) — kept in one
+place so the two copies cannot drift apart again.
+
+Broad shape: emission + structural invariants (`compiler_guarantees`,
+`structural`, `exhaustive_ast_proofs`), type algebra + lattice laws
+(`type_algebra`, `lattice`), both IR bridges and their categorical laws
+(`bridge_parity`, `rbs_bridge_parity`, `morphism_laws`), canonical interchange
+(`sexpr_round_trip`, `cross_lang_vectors`), and upstream trait conformance
+(`synthesizer_core_conformance`).
 
 ## The Convergence Pipeline
 
@@ -231,7 +234,7 @@ ruby-synthesizer implements the convergence pipeline at the language boundary:
 
 ```
 declared        -> resolved           -> converged           -> verified
-(Rust types)       (AST construction)    (emit_file())          (173 tests)
+(Rust types)       (AST construction)    (emit_file())          (360 tests)
 RubyNode enum      compile-time valid    deterministic Ruby     property tests
 RubyType enum      builder enforced      trailing newline       lattice proofs
                                          balanced blocks        bridge parity
@@ -240,7 +243,7 @@ RubyType enum      builder enforced      trailing newline       lattice proofs
 1. **Declared** -- Rust enums (`RubyNode`, `RubyType`) define the state space
 2. **Resolved** -- AST construction is compile-time validated (invalid nesting = compile error)
 3. **Converged** -- `emit_file()` produces Ruby source deterministically
-4. **Verified** -- 173 property tests prove all invariants hold
+4. **Verified** -- 360 property tests prove all invariants hold
 
 ## License
 

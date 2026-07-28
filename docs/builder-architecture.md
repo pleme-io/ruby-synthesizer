@@ -202,7 +202,7 @@ Builders (TypesFileBuilder, ResourceFileBuilder, RSpecBuilder)
 emit_file() (deterministic, trailing newline, clean ASCII)
     |
     v
-173 tests verify all invariants hold for ANY input
+360 tests verify all invariants hold for ANY input
 ```
 
 ## Test Coverage for Builders

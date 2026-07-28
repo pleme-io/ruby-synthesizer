@@ -145,23 +145,54 @@ ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 
 ## What's Proven (360 tests)
 
-| Category | Tests | File | What |
-|----------|-------|------|------|
-| Compiler guarantees | 30 | `tests/compiler_guarantees.rs` | Non-empty output, frozen pragma, balanced blocks, determinism, optional idempotence, valid Dry::Types, constrained preservation, section ordering, indentation, clean ASCII, no trailing whitespace |
-| Builder structure | 21 | `tests/structural.rs` | TypesFile + ResourceFile invariants via proptest |
-| Unit (iac_bridge) | 18 | `src/iac_bridge.rs` | Exhaustive variant coverage + parity + injectivity |
-| Property tests | 16 | `tests/properties.rs` | Balanced parens, deterministic, idempotent optional, macro parity |
-| Type algebra | 14 | `tests/type_algebra.rs` | Injectivity, constants, structural patterns, union separator count |
-| Lattice properties | 13 | `tests/lattice.rs` | Optional lifting, constrained narrowing, union bounds, monotonicity |
-| Bridge parity | 12 | `tests/bridge_parity.rs` | IacType -> RubyType totality, determinism, composition |
-| Convergence stages | 11 | `tests/convergence_stages.rs` | declared->resolved->converged, monotonicity |
-| Unit (builders) | 10 | `src/builders.rs` | Builder output structure, pascal case |
-| Unit (node) | 9 | `src/node.rs` | Individual node emission |
-| Unit (types) | 9 | `src/types.rs` | Type emission for all variants |
-| RSpec builder | 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings |
-| Unit (rspec) | 3 | `src/rspec.rs` | Fluent builder + macro parity |
-| Exhaustive AST proofs | 48 | `tests/exhaustive_ast_proofs.rs` | Every node variant emission, type algebra proptest, builder edge cases, IaC bridge exhaustive coverage, cross-cutting structural invariants |
-| Unit (emitter) | 1 | `src/emitter.rs` | Complete file emission |
+**How to reproduce this number.** The suite requires the non-default
+`iac-bridge` feature — four test targets are unconditionally bridge tests and
+do not COMPILE without it:
+
+```
+cargo test --all-targets --all-features   # 356 passed (222 integration + 134 unit)
+cargo test --doc         --all-features   #   4 passed, 1 ignored
+                                          # ────────────────────────────────
+                                          # 360 passing
+```
+
+`--all-targets` excludes doctests, which is why the doc run is separate. Both
+commands are the CI gate in `.github/workflows/ci.yml`; counts below were
+measured from that run, not estimated.
+
+### Integration tests — `tests/` (222)
+
+| Tests | File | What |
+|------:|------|------|
+| 47 | `tests/exhaustive_ast_proofs.rs` | Every node variant emission, type algebra proptest, builder edge cases, IaC bridge exhaustive coverage, cross-cutting structural invariants |
+| 30 | `tests/compiler_guarantees.rs` | Non-empty output, frozen pragma, balanced blocks, determinism, optional idempotence, valid Dry::Types, constrained preservation, section ordering, indentation, clean ASCII, no trailing whitespace |
+| 21 | `tests/structural.rs` | TypesFile + ResourceFile invariants via proptest |
+| 16 | `tests/properties.rs` | Balanced parens, deterministic, idempotent optional, macro parity |
+| 14 | `tests/type_algebra.rs` | Injectivity, constants, structural patterns, union separator count |
+| 13 | `tests/lattice.rs` | Optional lifting, constrained narrowing, union bounds, monotonicity |
+| 12 | `tests/bridge_parity.rs` | IacType -> RubyType totality, determinism, composition |
+| 12 | `tests/morphism_laws.rs` | Categorical laws over the real bridges — identity left/right unit, associativity of `Composed` |
+| 12 | `tests/rbs_bridge_parity.rs` | IacType -> RbsType totality, determinism, injectivity (sibling of `bridge_parity`) |
+| 11 | `tests/convergence_stages.rs` | declared->resolved->converged, monotonicity |
+| 11 | `tests/synthesizer_core_conformance.rs` | `RubyNode` conformance to `synthesizer_core::node::laws::*` |
+| 8 | `tests/sexpr_round_trip.rs` | RubyType/RbsType sexpr round-trip: direct, text (emit→parse→from_sexpr), deterministic, printable-ASCII |
+| 8 | `tests/cross_lang_vectors.rs` | Frozen BLAKE3 vectors for canonical RubyType/RbsType emissions |
+| 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings |
+| 1 | `tests/no_raw_invariant.rs` | INVARIANT: no `Raw` node construction in production code |
+
+### Unit tests — `src/` (134)
+
+| Tests | Module | What |
+|------:|--------|------|
+| 41 | `src/iac_bridge.rs` | Exhaustive variant coverage + parity + injectivity (both bridges) |
+| 25 | `src/node.rs` | Individual node emission |
+| 20 | `src/sexpr.rs` | ToSExpr / FromSExpr impls for RubyType and RbsType |
+| 14 | `src/rbs_types.rs` | RBS type emission for all variants |
+| 11 | `src/rbs_builder.rs` | TypesRbsFileBuilder structure |
+| 10 | `src/builders.rs` | Builder output structure, pascal case |
+| 9 | `src/types.rs` | Type emission for all variants |
+| 3 | `src/rspec.rs` | Fluent builder + macro parity |
+| 1 | `src/emitter.rs` | Complete file emission |
 
 ## IaC Bridge (feature: iac-bridge)
 
@@ -293,7 +324,7 @@ The convergence pipeline at the language boundary:
 
 ```
 declared          -> resolved            -> converged         -> verified
-Rust enums           compile-time valid     emit_file()          225 tests
+Rust enums           compile-time valid     emit_file()          360 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
