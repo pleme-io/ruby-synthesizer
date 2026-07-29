@@ -5,7 +5,7 @@
 
 Typed AST for structurally correct Ruby code generation from Rust.
 Ruby is a build artifact -- authored in Rust, materialized as Ruby,
-proven by 360 tests. Syntax errors are impossible at the Rust compiler level.
+proven by 368 tests (2026-07-29; commands below). Syntax errors are impossible at the Rust compiler level.
 
 ## How It Is Consumed
 
@@ -54,6 +54,28 @@ The following classes of bugs are **impossible** at the Rust compiler level:
 | No trailing whitespace | Emit produces exact content, no trailing spaces | Emitter |
 | Clean ASCII output | All output bytes are 0x20-0x7E or newline | Emitter |
 | Deterministic output | Same AST always produces byte-identical Ruby | `emit_file()` is pure |
+| No unterminated string literal | `StringLit` escapes `\` then `'` at emit time | `escape_single_quoted()` |
+
+### Typed value peers (2026-07-29)
+
+Four nodes let a caller pass a value *tree* where it previously had to hand in
+pre-rendered Ruby text. Each is the typed peer of an existing stringly node,
+following `ConstAssignNode`'s relationship to `ConstAssign`:
+
+| Node | Emits | Peer of / why it exists |
+|---|---|---|
+| `AssignmentNode { variable, value }` | `s.name = 'x'` | `Assignment`; LHS stays `String` — an assignment *target* is not an expression |
+| `DslCall { method, args }` | `s.add_dependency 'a', 'b'` | `DslSetter`; takes an arg list, not one rendered string. Empty args emit the bare name |
+| `IndexCall { receiver, index }` | `Dir['lib/**/*.rb']` | nothing — `Call` always emits dot-and-parens (`Dir.[]('x')` at best) |
+| `KeywordArg { name, value }` | `path: '../x'` | nothing — `HashLit` always brackets its pairs, so it cannot express a bare kwarg |
+
+**`StringLit` now owns its escaping, and that is a bug fix rather than
+hygiene.** Ruby single-quoting recognises exactly two escapes, `\\` and `\'`, so
+the emitter doubles backslashes *first* and then escapes quotes — quote-first
+would double the backslash it had just introduced. Callers used to escape their
+own strings, and one got it wrong in a way CRuby rejects outright: a value with a
+backslash before a quote produced an unterminated literal. Values containing
+neither character are byte-identical to before, pinned by a test.
 
 ## Builder API Reference
 
@@ -143,17 +165,17 @@ ruby_parent!()           // -> None
 ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 ```
 
-## What's Proven (360 tests)
+## What's Proven (368 tests)
 
 **How to reproduce this number.** The suite requires the non-default
 `iac-bridge` feature — four test targets are unconditionally bridge tests and
 do not COMPILE without it:
 
 ```
-cargo test --all-targets --all-features   # 356 passed (222 integration + 134 unit)
-cargo test --doc         --all-features   #   4 passed, 1 ignored
+cargo test --all-targets --all-features   # 364 passed (222 integration + 142 unit)
+cargo test --doc         --all-features   #   4 passed, 3 ignored
                                           # ────────────────────────────────
-                                          # 360 passing
+                                          # 368 passing
 ```
 
 `--all-targets` excludes doctests, which is why the doc run is separate. Both
@@ -180,12 +202,12 @@ measured from that run, not estimated.
 | 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings |
 | 1 | `tests/no_raw_invariant.rs` | INVARIANT: no `Raw` node construction in production code |
 
-### Unit tests — `src/` (134)
+### Unit tests — `src/` (142)
 
 | Tests | Module | What |
 |------:|--------|------|
 | 41 | `src/iac_bridge.rs` | Exhaustive variant coverage + parity + injectivity (both bridges) |
-| 25 | `src/node.rs` | Individual node emission |
+| 33 | `src/node.rs` | Individual node emission (+8: the four typed value peers and single-quote escaping) |
 | 20 | `src/sexpr.rs` | ToSExpr / FromSExpr impls for RubyType and RbsType |
 | 14 | `src/rbs_types.rs` | RBS type emission for all variants |
 | 11 | `src/rbs_builder.rs` | TypesRbsFileBuilder structure |
@@ -324,13 +346,13 @@ The convergence pipeline at the language boundary:
 
 ```
 declared          -> resolved            -> converged         -> verified
-Rust enums           compile-time valid     emit_file()          360 tests
+Rust enums           compile-time valid     emit_file()          368 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
-- **declared** = Rust types (RubyNode 54 variants — Raw removed in Wave 3,
+- **declared** = Rust types (RubyNode 60 variants — Raw removed in Wave 3,
   BodyLines added as narrow typed bridge; RubyType 7 variants; RbsType 7 variants)
 - **resolved** = AST construction (invalid nesting = compile error)
 - **converged** = `emit_file()` produces Ruby/RBS source (deterministic, trailing newline)
-- **verified** = 360 tests prove all invariants hold (lattice, algebra, bridge,
+- **verified** = 368 tests prove all invariants hold (lattice, algebra, bridge,
   structure, sexpr round-trip, cross-language content-hash vectors)
