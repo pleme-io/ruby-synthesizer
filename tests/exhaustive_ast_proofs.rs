@@ -131,6 +131,29 @@ fn all_node_variants() -> Vec<RubyNode> {
             subject: "result".into(),
             matcher: "to eq(42)".into(),
         },
+        RubyNode::AssignmentNode {
+            variable: "s.name".into(),
+            value: Box::new(RubyNode::StringLit("pangea-platform".into())),
+        },
+        RubyNode::DslCall {
+            method: "s.add_dependency".into(),
+            args: vec![
+                RubyNode::StringLit("pangea-core".into()),
+                RubyNode::StringLit("~> 0.2".into()),
+            ],
+        },
+        RubyNode::DslCall {
+            method: "gemspec".into(),
+            args: vec![],
+        },
+        RubyNode::IndexCall {
+            receiver: Box::new(RubyNode::Ident("Dir".into())),
+            index: Box::new(RubyNode::StringLit("lib/**/*.rb".into())),
+        },
+        RubyNode::KeywordArg {
+            name: "path".into(),
+            value: Box::new(RubyNode::StringLit("../pangea-core".into())),
+        },
     ]
 }
 

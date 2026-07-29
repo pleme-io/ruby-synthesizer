@@ -225,6 +225,28 @@ pub enum RubyNode {
         value: String,
     },
 
+    /// `variable = <typed RubyNode expression>` — typed peer of
+    /// [`Assignment`], exactly as [`ConstAssignNode`] is the typed peer of
+    /// [`ConstAssign`]. Use whenever the right-hand side is a Ruby *value*
+    /// (a string literal, an array, an index call) rather than an opaque
+    /// fragment, so the emitter — not the caller — owns quoting and escaping.
+    ///
+    /// The left-hand side stays a `String` because an assignment target is
+    /// not an expression: `s.metadata['k'] = v` has no value-node reading.
+    ///
+    /// ```ignore
+    /// use ruby_synthesizer::RubyNode;
+    /// let node = RubyNode::AssignmentNode {
+    ///     variable: "s.name".into(),
+    ///     value: Box::new(RubyNode::StringLit("pangea-platform".into())),
+    /// };
+    /// assert_eq!(node.emit(0), "s.name = 'pangea-platform'");
+    /// ```
+    AssignmentNode {
+        variable: String,
+        value: Box<RubyNode>,
+    },
+
     /// `unless condition ... end`
     Unless {
         condition: String,
@@ -264,6 +286,33 @@ pub enum RubyNode {
         value: String,
     },
 
+    /// `method_name arg, arg, key: arg` — typed peer of [`DslSetter`],
+    /// paren-less like it, but taking an argument *list* of typed nodes
+    /// instead of one pre-rendered string. Empty args emit the bare method
+    /// name (`gemspec`), matching `DslSetter`'s empty-value behaviour.
+    ///
+    /// This is what a gemspec or Gemfile line actually is — a call with
+    /// arguments — so `s.add_dependency 'pangea-core', '~> 0.2'` and
+    /// `gem 'pangea-core', path: '../pangea-core'` become node trees rather
+    /// than comma-joined strings. Pair with [`RubyNode::KeywordArg`] for the
+    /// trailing `key: value` form.
+    ///
+    /// ```ignore
+    /// use ruby_synthesizer::RubyNode;
+    /// let node = RubyNode::DslCall {
+    ///     method: "s.add_dependency".into(),
+    ///     args: vec![
+    ///         RubyNode::StringLit("pangea-core".into()),
+    ///         RubyNode::StringLit("~> 0.2".into()),
+    ///     ],
+    /// };
+    /// assert_eq!(node.emit(0), "s.add_dependency 'pangea-core', '~> 0.2'");
+    /// ```
+    DslCall {
+        method: String,
+        args: Vec<RubyNode>,
+    },
+
     // ── General-purpose typed nodes ─────────────────────────────
 
     /// Bare identifier: `some_var`, `self`, `true`, `region`
@@ -293,6 +342,28 @@ pub enum RubyNode {
         receiver: Option<Box<RubyNode>>,
         method: String,
         args: Vec<RubyNode>,
+    },
+
+    /// Index / element reference: `receiver[index]` — e.g. `Dir['lib/**/*.rb']`,
+    /// `ENV['HOME']`, `h[:key]`.
+    ///
+    /// [`Call`] cannot express this: it always emits dot-and-parens, so the
+    /// nearest it gets is `Dir.[]('lib/**/*.rb')`. Bracket indexing is a
+    /// distinct Ruby surface form with no prior representation here, which is
+    /// why it is a variant rather than a builder over `Call`.
+    IndexCall {
+        receiver: Box<RubyNode>,
+        index: Box<RubyNode>,
+    },
+
+    /// A single bare keyword argument: `name: value`.
+    ///
+    /// Distinct from [`HashLit`], which always brackets its pairs — `gem 'x',
+    /// path: '../x'` is a keyword argument, not the hash `{ path: '../x' }`.
+    /// Only meaningful inside an argument list ([`DslCall`], [`Call`]).
+    KeywordArg {
+        name: String,
+        value: Box<RubyNode>,
     },
 
     /// Constant / module path: `Pangea::Architectures::SecureVpc`
@@ -622,6 +693,15 @@ impl RubyNode {
                 format!("{pad}{variable} = {value}")
             }
 
+            Self::AssignmentNode { variable, value } => {
+                // Same splice as `ConstAssignNode`: emit the value at this
+                // indent, then replace its pad with the `<var> = ` prefix so a
+                // multi-line right-hand side stays aligned under the target.
+                let emitted = value.emit(indent);
+                let stripped = emitted.strip_prefix(&pad).unwrap_or(&emitted);
+                format!("{pad}{variable} = {stripped}")
+            }
+
             Self::Unless { condition, body } => {
                 let mut out = format!("{pad}unless {condition}\n");
                 for node in body {
@@ -688,10 +768,18 @@ impl RubyNode {
                     format!("{pad}{method} {value}")
                 }
             }
+            Self::DslCall { method, args } => {
+                if args.is_empty() {
+                    format!("{pad}{method}")
+                } else {
+                    let arg_strs: Vec<String> = args.iter().map(|a| a.emit(0)).collect();
+                    format!("{pad}{method} {}", arg_strs.join(", "))
+                }
+            }
             // General-purpose typed nodes
             Self::Ident(name) => format!("{pad}{name}"),
             Self::SymbolLit(name) => format!("{pad}:{name}"),
-            Self::StringLit(val) => format!("{pad}'{val}'"),
+            Self::StringLit(val) => format!("{pad}'{}'", escape_single_quoted(val)),
             Self::ArrayLit(elements) => {
                 let inner: Vec<String> = elements.iter().map(|e| e.emit(0)).collect();
                 format!("{pad}[{}]", inner.join(", "))
@@ -743,6 +831,12 @@ impl RubyNode {
                     let arg_strs: Vec<String> = args.iter().map(|a| a.emit(0)).collect();
                     format!("{pad}{rcv}{method}({})", arg_strs.join(", "))
                 }
+            }
+            Self::IndexCall { receiver, index } => {
+                format!("{pad}{}[{}]", receiver.emit(0), index.emit(0))
+            }
+            Self::KeywordArg { name, value } => {
+                format!("{pad}{name}: {}", value.emit(0))
             }
             Self::ConstPath(parts) => format!("{pad}{}", parts.join("::")),
             Self::MergeCall { receiver, hash } => {
@@ -896,6 +990,28 @@ impl RubyNode {
             }
         }
     }
+}
+
+/// Escape a value for the inside of a Ruby **single-quoted** literal.
+///
+/// Ruby single-quoting recognises exactly two escapes, `\\` and `\'`; every
+/// other backslash is literal. So the whole job is: double the backslashes
+/// first, then escape the quotes. Doing it in that order matters — quote-first
+/// would then double the backslash it had just introduced.
+///
+/// This lives in the emitter because that is the only place that knows the
+/// value is about to be single-quoted. A caller that escapes its own strings
+/// is a caller that can forget to, and callers did: the fleet's own
+/// `pangea-platform` gemspec carries a description reading
+/// "…arch-synthesizer's pangea_render…", which without this produces a
+/// gemspec Ruby cannot parse.
+///
+/// Escaping the backslash is a strict widening, not a behaviour change, for
+/// every value that has no trailing backslash: `'a\nb'` and `'a\\nb'` denote
+/// the same four characters in Ruby. The values it rescues are the ones that
+/// previously could not round-trip at all.
+fn escape_single_quoted(value: &str) -> String {
+    value.replace('\\', "\\\\").replace('\'', "\\'")
 }
 
 /// Format a list of strings as Ruby symbols: `[:a, :b, :c]`
@@ -1231,5 +1347,109 @@ mod tests {
         let a = RubyNode::BodyLines(lines.clone()).emit(3);
         let b = RubyNode::BodyLines(lines).emit(3);
         assert_eq!(a, b);
+    }
+
+    // ── Typed value peers: AssignmentNode / DslCall / IndexCall / KeywordArg ──
+
+    #[test]
+    fn assignment_node_emits_the_same_shape_as_stringly_assignment() {
+        let typed = RubyNode::AssignmentNode {
+            variable: "s.version".into(),
+            value: Box::new(RubyNode::StringLit("0.1.0".into())),
+        };
+        let stringly = RubyNode::Assignment {
+            variable: "s.version".into(),
+            value: "'0.1.0'".into(),
+        };
+        assert_eq!(typed.emit(0), "s.version = '0.1.0'");
+        assert_eq!(typed.emit(1), stringly.emit(1));
+    }
+
+    #[test]
+    fn assignment_node_takes_a_structured_right_hand_side() {
+        let node = RubyNode::AssignmentNode {
+            variable: "s.authors".into(),
+            value: Box::new(RubyNode::ArrayLit(vec![
+                RubyNode::StringLit("Pleme Team".into()),
+            ])),
+        };
+        assert_eq!(node.emit(1), "  s.authors = ['Pleme Team']");
+    }
+
+    #[test]
+    fn dsl_call_joins_args_without_parens_and_degenerates_when_empty() {
+        let with_args = RubyNode::DslCall {
+            method: "s.add_dependency".into(),
+            args: vec![
+                RubyNode::StringLit("pangea-core".into()),
+                RubyNode::StringLit("~> 0.2".into()),
+            ],
+        };
+        assert_eq!(with_args.emit(1), "  s.add_dependency 'pangea-core', '~> 0.2'");
+
+        let bare = RubyNode::DslCall { method: "gemspec".into(), args: vec![] };
+        assert_eq!(bare.emit(0), "gemspec");
+        // Same degeneracy as its stringly peer with an empty value.
+        assert_eq!(
+            bare.emit(0),
+            RubyNode::DslSetter { method: "gemspec".into(), value: String::new() }.emit(0)
+        );
+    }
+
+    #[test]
+    fn keyword_arg_is_bare_and_not_a_braced_hash() {
+        let node = RubyNode::DslCall {
+            method: "gem".into(),
+            args: vec![
+                RubyNode::StringLit("pangea-core".into()),
+                RubyNode::KeywordArg {
+                    name: "path".into(),
+                    value: Box::new(RubyNode::StringLit("../pangea-core".into())),
+                },
+            ],
+        };
+        let out = node.emit(0);
+        assert_eq!(out, "gem 'pangea-core', path: '../pangea-core'");
+        assert!(!out.contains('{'), "keyword arg must not brace like HashLit: {out}");
+    }
+
+    #[test]
+    fn index_call_emits_brackets_not_a_dot_method() {
+        let node = RubyNode::IndexCall {
+            receiver: Box::new(RubyNode::Ident("Dir".into())),
+            index: Box::new(RubyNode::StringLit("lib/**/*.rb".into())),
+        };
+        assert_eq!(node.emit(0), "Dir['lib/**/*.rb']");
+    }
+
+    // ── Single-quote escaping ────────────────────────────────────────────
+    //
+    // These pin the reason the escape moved into the emitter: a caller that
+    // has to remember to escape is a caller that can forget, and the fleet's
+    // own `pangea-platform` gemspec description contains an apostrophe.
+
+    #[test]
+    fn string_lit_escapes_an_embedded_single_quote() {
+        let node = RubyNode::StringLit("arch-synthesizer's pangea_render".into());
+        assert_eq!(node.emit(0), "'arch-synthesizer\\'s pangea_render'");
+    }
+
+    #[test]
+    fn string_lit_escapes_backslash_before_quote_not_after() {
+        // Quote-first ordering would double the backslash it just introduced,
+        // yielding `'a\\\'b'` — a different string.
+        let node = RubyNode::StringLit(r"a\'b".into());
+        assert_eq!(node.emit(0), r"'a\\\'b'");
+    }
+
+    #[test]
+    fn string_lit_leaves_ordinary_values_byte_identical() {
+        for plain in ["pangea-platform", "MIT", ">= 3.3.0", "lib/**/*.rb"] {
+            assert_eq!(
+                RubyNode::StringLit(plain.into()).emit(0),
+                format!("'{plain}'"),
+                "escaping must be a no-op for values with no quote or backslash"
+            );
+        }
     }
 }
