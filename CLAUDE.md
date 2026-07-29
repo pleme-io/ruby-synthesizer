@@ -5,7 +5,7 @@
 
 Typed AST for structurally correct Ruby code generation from Rust.
 Ruby is a build artifact -- authored in Rust, materialized as Ruby,
-proven by 368 tests (2026-07-29; commands below). Syntax errors are impossible at the Rust compiler level.
+proven by 371 tests (2026-07-29; commands below). Syntax errors are impossible at the Rust compiler level.
 
 ## How It Is Consumed
 
@@ -54,7 +54,7 @@ The following classes of bugs are **impossible** at the Rust compiler level:
 | No trailing whitespace | Emit produces exact content, no trailing spaces | Emitter |
 | Clean ASCII output | All output bytes are 0x20-0x7E or newline | Emitter |
 | Deterministic output | Same AST always produces byte-identical Ruby | `emit_file()` is pure |
-| No unterminated string literal | `StringLit` escapes `\` then `'` at emit time | `escape_single_quoted()` |
+| No unterminated string literal | `StringLit` **and every RSpec description node** escape `\` then `'` at emit time | `escape_single_quoted()` |
 
 ### Typed value peers (2026-07-29)
 
@@ -68,6 +68,18 @@ following `ConstAssignNode`'s relationship to `ConstAssign`:
 | `DslCall { method, args }` | `s.add_dependency 'a', 'b'` | `DslSetter`; takes an arg list, not one rendered string. Empty args emit the bare name |
 | `IndexCall { receiver, index }` | `Dir['lib/**/*.rb']` | nothing — `Call` always emits dot-and-parens (`Dir.[]('x')` at best) |
 | `KeywordArg { name, value }` | `path: '../x'` | nothing — `HashLit` always brackets its pairs, so it cannot express a bare kwarg |
+
+**Escaping reaches the RSpec description nodes too (2026-07-29).**
+`Context`, `It`, `SharedExamples` and `ItBehavesLike` single-quote a *name* that
+is, in practice, free English prose — an invariant's description, a scenario
+sentence — and did so without escaping. One apostrophe ends the literal early,
+and ruby 2.6 rejects the file outright (`syntax error, unexpected tIDENTIFIER`
+then `unterminated string meets end of file`). This is the same class as
+`StringLit` one layer up, and it is why the escape lives in the emitter: the
+node is the only layer that knows its `name` is about to be single-quoted.
+Values containing neither `'` nor `\` are byte-identical to before — confirmed
+by a 169-artifact byte-diff of arch-synthesizer's `render_constellation` across
+the change, in which only a wall-clock timestamp moved.
 
 **`StringLit` now owns its escaping, and that is a bug fix rather than
 hygiene.** Ruby single-quoting recognises exactly two escapes, `\\` and `\'`, so
@@ -165,17 +177,17 @@ ruby_parent!()           // -> None
 ruby_parent!("BaseClass") // -> Some("BaseClass".to_string())
 ```
 
-## What's Proven (368 tests)
+## What's Proven (371 tests)
 
 **How to reproduce this number.** The suite requires the non-default
 `iac-bridge` feature — four test targets are unconditionally bridge tests and
 do not COMPILE without it:
 
 ```
-cargo test --all-targets --all-features   # 364 passed (222 integration + 142 unit)
+cargo test --all-targets --all-features   # 367 passed (222 integration + 145 unit)
 cargo test --doc         --all-features   #   4 passed, 3 ignored
                                           # ────────────────────────────────
-                                          # 368 passing
+                                          # 371 passing
 ```
 
 `--all-targets` excludes doctests, which is why the doc run is separate. Both
@@ -202,12 +214,12 @@ measured from that run, not estimated.
 | 6 | `tests/rspec_builder.rs` | Structure, indentation, let bindings |
 | 1 | `tests/no_raw_invariant.rs` | INVARIANT: no `Raw` node construction in production code |
 
-### Unit tests — `src/` (142)
+### Unit tests — `src/` (145)
 
 | Tests | Module | What |
 |------:|--------|------|
 | 41 | `src/iac_bridge.rs` | Exhaustive variant coverage + parity + injectivity (both bridges) |
-| 33 | `src/node.rs` | Individual node emission (+8: the four typed value peers and single-quote escaping) |
+| 36 | `src/node.rs` | Individual node emission (+8: the four typed value peers and single-quote escaping; +3: RSpec description escaping) |
 | 20 | `src/sexpr.rs` | ToSExpr / FromSExpr impls for RubyType and RbsType |
 | 14 | `src/rbs_types.rs` | RBS type emission for all variants |
 | 11 | `src/rbs_builder.rs` | TypesRbsFileBuilder structure |
@@ -346,7 +358,7 @@ The convergence pipeline at the language boundary:
 
 ```
 declared          -> resolved            -> converged         -> verified
-Rust enums           compile-time valid     emit_file()          368 tests
+Rust enums           compile-time valid     emit_file()          371 tests
 (RubyNode/RubyType)  (builder enforced)     (deterministic)      (proptest proofs)
 ```
 
@@ -354,5 +366,5 @@ Rust enums           compile-time valid     emit_file()          368 tests
   BodyLines added as narrow typed bridge; RubyType 7 variants; RbsType 7 variants)
 - **resolved** = AST construction (invalid nesting = compile error)
 - **converged** = `emit_file()` produces Ruby/RBS source (deterministic, trailing newline)
-- **verified** = 368 tests prove all invariants hold (lattice, algebra, bridge,
+- **verified** = 371 tests prove all invariants hold (lattice, algebra, bridge,
   structure, sexpr round-trip, cross-language content-hash vectors)

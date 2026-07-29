@@ -935,6 +935,7 @@ impl RubyNode {
             }
 
             Self::SharedExamples { name, params, body } => {
+                let name = escape_single_quoted(name);
                 let mut out = format!("{pad}RSpec.shared_examples '{name}' do |{params}|\n");
                 for node in body {
                     out.push_str(&node.emit(indent + 1));
@@ -945,6 +946,7 @@ impl RubyNode {
             }
 
             Self::Context { name, body } => {
+                let name = escape_single_quoted(name);
                 let mut out = format!("{pad}context '{name}' do\n");
                 for node in body {
                     out.push_str(&node.emit(indent + 1));
@@ -955,6 +957,7 @@ impl RubyNode {
             }
 
             Self::It { name, body } => {
+                let name = escape_single_quoted(name);
                 if body.is_empty() {
                     format!("{pad}it '{name}' do\n{pad}end")
                 } else {
@@ -969,6 +972,7 @@ impl RubyNode {
             }
 
             Self::ItBehavesLike { name, params } => {
+                let name = escape_single_quoted(name);
                 if params.is_empty() {
                     format!("{pad}it_behaves_like '{name}'")
                 } else {
@@ -1449,6 +1453,54 @@ mod tests {
                 RubyNode::StringLit(plain.into()).emit(0),
                 format!("'{plain}'"),
                 "escaping must be a no-op for values with no quote or backslash"
+            );
+        }
+    }
+
+    // ── RSpec description escaping ──────────────────────────────────
+    //
+    // `Context`/`It`/`SharedExamples`/`ItBehavesLike` carry the most
+    // free-form prose of any node in the enum — an invariant's English
+    // description, a scenario sentence — and single-quoted it without
+    // escaping, so one apostrophe ended the literal early and CRuby
+    // rejected the whole file. Same class as `StringLit`, one layer up:
+    // proven live against ruby 2.6, which reports `syntax error` and then
+    // `unterminated string meets end of file`.
+
+    #[test]
+    fn it_escapes_an_apostrophe_in_its_description() {
+        let node = RubyNode::It {
+            name: "the gateway's key is required".into(),
+            body: vec![],
+        };
+        assert_eq!(node.emit(0), "it 'the gateway\\'s key is required' do\nend");
+    }
+
+    #[test]
+    fn context_escapes_backslash_before_quote_not_after() {
+        // Same ordering argument as `StringLit`: backslashes double first.
+        let node = RubyNode::Context { name: r"a\'b".into(), body: vec![] };
+        assert_eq!(node.emit(0), "context 'a\\\\\\'b' do\nend");
+    }
+
+    #[test]
+    fn rspec_description_nodes_leave_ordinary_values_byte_identical() {
+        // The fleet's existing descriptions contain neither character, so this
+        // widening moves no bytes anywhere it already emitted valid Ruby —
+        // confirmed by a 169-artifact byte-diff of arch-synthesizer's
+        // `render_constellation` across this change.
+        for plain in ["has path attribute", "when empty", "enforces bounds"] {
+            assert_eq!(
+                RubyNode::It { name: plain.into(), body: vec![] }.emit(0),
+                format!("it '{plain}' do\nend")
+            );
+            assert_eq!(
+                RubyNode::Context { name: plain.into(), body: vec![] }.emit(0),
+                format!("context '{plain}' do\nend")
+            );
+            assert_eq!(
+                RubyNode::ItBehavesLike { name: plain.into(), params: vec![] }.emit(0),
+                format!("it_behaves_like '{plain}'")
             );
         }
     }
