@@ -12,13 +12,13 @@ default = []
 iac-bridge = ["dep:iac-forge"]
 
 [dependencies]
-iac-forge = { git = "https://github.com/pleme-io/iac-forge", optional = true }
-synthesizer-core = { git = "https://github.com/pleme-io/synthesizer-core" }
+iac-forge = { version = "0.1", optional = true }
+synthesizer-core = "0.1"
 
 [dev-dependencies]
 proptest = "1"
 regex = "1"
-iac-forge = { git = "https://github.com/pleme-io/iac-forge" }
+iac-forge = "0.1"
 
 [lints.clippy]
 pedantic = "warn"
