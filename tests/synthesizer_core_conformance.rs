@@ -83,8 +83,14 @@ fn law_determinism_holds_on_hash_lit() {
 
 #[test]
 fn law_honors_indent_unit_on_comment() {
-    assert!(laws::honors_indent_unit(&RubyNode::Comment("hello".into()), 0));
-    assert!(laws::honors_indent_unit(&RubyNode::Comment("hello".into()), 2));
+    assert!(laws::honors_indent_unit(
+        &RubyNode::Comment("hello".into()),
+        0
+    ));
+    assert!(laws::honors_indent_unit(
+        &RubyNode::Comment("hello".into()),
+        2
+    ));
 }
 
 #[test]

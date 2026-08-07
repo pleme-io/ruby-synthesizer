@@ -23,9 +23,9 @@
 //! assert!(source.contains("attribute :domain, T::String"));
 //! ```
 
+use crate::emitter::emit_file;
 use crate::node::RubyNode;
 use crate::types::RubyType;
-use crate::emitter::emit_file;
 
 // ── Types File Builder ──────────────────────────────────────────
 
@@ -72,7 +72,9 @@ impl TypesFileBuilder {
     /// The closure receives a `ClassBuilder` where only attributes can be added.
     #[must_use]
     pub fn class(mut self, name: &str, f: impl FnOnce(ClassBuilder) -> ClassBuilder) -> Self {
-        let builder = f(ClassBuilder { attributes: Vec::new() });
+        let builder = f(ClassBuilder {
+            attributes: Vec::new(),
+        });
         self.classes.push(ClassDef {
             name: name.to_string(),
             attributes: builder.attributes,
@@ -92,22 +94,19 @@ impl TypesFileBuilder {
         ];
 
         let module_path = vec![
-            "Pangea".into(), "Resources".into(),
-            self.provider_pascal.clone(), "Types".into(),
+            "Pangea".into(),
+            "Resources".into(),
+            self.provider_pascal.clone(),
+            "Types".into(),
         ];
 
-        let mut module_body = vec![
-            RubyNode::Include("Dry.Types()".into()),
-            RubyNode::Blank,
-        ];
+        let mut module_body = vec![RubyNode::Include("Dry.Types()".into()), RubyNode::Blank];
 
         for class_def in &self.classes {
-            let mut class_body = vec![
-                RubyNode::ConstAssign {
-                    name: "T".into(),
-                    value: format!("Pangea::Resources::{}::Types", self.provider_pascal),
-                },
-            ];
+            let mut class_body = vec![RubyNode::ConstAssign {
+                name: "T".into(),
+                value: format!("Pangea::Resources::{}::Types", self.provider_pascal),
+            }];
 
             if !class_def.attributes.is_empty() {
                 class_body.push(RubyNode::Blank);
@@ -174,7 +173,10 @@ impl ResourceFileBuilder {
 
     #[must_use]
     pub fn outputs(mut self, outputs: Vec<(&str, &str)>) -> Self {
-        self.outputs = outputs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        self.outputs = outputs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
         self
     }
 
@@ -228,9 +230,7 @@ impl ResourceFileBuilder {
                     },
                     RubyNode::Module {
                         path: vec![self.provider_pascal.clone()],
-                        body: vec![
-                            RubyNode::Include(self.module_name.clone()),
-                        ],
+                        body: vec![RubyNode::Include(self.module_name.clone())],
                     },
                 ],
             },
@@ -296,7 +296,11 @@ mod tests {
         let source = TypesFileBuilder::new("porkbun")
             .class("NameserversAttributes", |c| {
                 c.attribute("domain", RubyType::simple("T::String"), true)
-                 .attribute("nameservers", RubyType::array(RubyType::simple("T::String")), true)
+                    .attribute(
+                        "nameservers",
+                        RubyType::array(RubyType::simple("T::String")),
+                        true,
+                    )
             })
             .emit();
         assert!(source.contains("module Pangea::Resources::Porkbun::Types"));
@@ -310,7 +314,7 @@ mod tests {
         let source = TypesFileBuilder::new("aws")
             .class("VpcAttributes", |c| {
                 c.attribute("cidr_block", RubyType::simple("T::String"), true)
-                 .attribute("description", RubyType::simple("T::String"), false)
+                    .attribute("description", RubyType::simple("T::String"), false)
             })
             .emit();
         assert!(source.contains("attribute :cidr_block, T::String"));
@@ -320,7 +324,9 @@ mod tests {
     #[test]
     fn types_file_aws_module_name() {
         let source = TypesFileBuilder::new("aws")
-            .class("VpcAttributes", |c| c.attribute("id", RubyType::simple("T::String"), true))
+            .class("VpcAttributes", |c| {
+                c.attribute("id", RubyType::simple("T::String"), true)
+            })
             .emit();
         assert!(source.contains("module Pangea::Resources::AWS::Types"));
         assert!(source.contains("T = Pangea::Resources::AWS::Types"));
@@ -338,15 +344,17 @@ mod tests {
 
     #[test]
     fn resource_file_has_registry_call() {
-        let source = ResourceFileBuilder::new("porkbun", "porkbun_nameservers", "nameservers")
-            .emit();
-        assert!(source.contains("Pangea::ResourceRegistry.register_module(Pangea::Resources::Porkbun)"));
+        let source =
+            ResourceFileBuilder::new("porkbun", "porkbun_nameservers", "nameservers").emit();
+        assert!(
+            source.contains("Pangea::ResourceRegistry.register_module(Pangea::Resources::Porkbun)")
+        );
     }
 
     #[test]
     fn resource_file_has_includes() {
-        let source = ResourceFileBuilder::new("porkbun", "porkbun_nameservers", "nameservers")
-            .emit();
+        let source =
+            ResourceFileBuilder::new("porkbun", "porkbun_nameservers", "nameservers").emit();
         assert!(source.contains("include Pangea::Resources::ResourceBuilder"));
         assert!(source.contains("include PorkbunNameservers"));
     }

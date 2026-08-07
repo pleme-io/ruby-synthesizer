@@ -120,7 +120,8 @@ mod tests {
             RubyType::union(vec![
                 RubyType::simple("T::Coercible::Integer"),
                 RubyType::simple("T::Coercible::Float"),
-            ]).emit(),
+            ])
+            .emit(),
             "(T::Coercible::Integer | T::Coercible::Float)"
         );
     }
@@ -128,10 +129,8 @@ mod tests {
     #[test]
     fn constrained_type() {
         assert_eq!(
-            RubyType::constrained(
-                RubyType::simple("T::String"),
-                "included_in: ['tcp', 'udp']",
-            ).emit(),
+            RubyType::constrained(RubyType::simple("T::String"), "included_in: ['tcp', 'udp']",)
+                .emit(),
             "T::String.constrained(included_in: ['tcp', 'udp'])"
         );
     }

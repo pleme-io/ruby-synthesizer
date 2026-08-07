@@ -34,7 +34,12 @@ mod tests {
             RubyNode::Require("pangea/resources/base_attributes".into()),
             RubyNode::Blank,
             RubyNode::Module {
-                path: vec!["Pangea".into(), "Resources".into(), "Porkbun".into(), "Types".into()],
+                path: vec![
+                    "Pangea".into(),
+                    "Resources".into(),
+                    "Porkbun".into(),
+                    "Types".into(),
+                ],
                 body: vec![
                     RubyNode::Include("Dry.Types()".into()),
                     RubyNode::Blank,
@@ -70,7 +75,9 @@ mod tests {
         assert!(output.contains("require 'pangea/resources/base_attributes'"));
         assert!(output.contains("module Pangea::Resources::Porkbun::Types"));
         assert!(output.contains("  include Dry.Types()"));
-        assert!(output.contains("  class NameserversAttributes < Pangea::Resources::BaseAttributes"));
+        assert!(
+            output.contains("  class NameserversAttributes < Pangea::Resources::BaseAttributes")
+        );
         assert!(output.contains("    T = Pangea::Resources::Porkbun::Types"));
         assert!(output.contains("    attribute :domain, T::String"));
         assert!(output.contains("    attribute :nameservers, T::Array.of(T::String)"));

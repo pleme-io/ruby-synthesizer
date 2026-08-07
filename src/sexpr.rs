@@ -7,7 +7,7 @@
 //! Enabled under the `iac-bridge` feature because it pulls in iac-forge.
 
 use iac_forge::sexpr::{
-    parse_struct, struct_expr, take_field, FromSExpr, SExpr, SExprError, ToSExpr,
+    FromSExpr, SExpr, SExprError, ToSExpr, parse_struct, struct_expr, take_field,
 };
 
 use crate::rbs_types::RbsType;
@@ -18,14 +18,12 @@ use crate::types::RubyType;
 impl ToSExpr for RubyType {
     fn to_sexpr(&self) -> SExpr {
         match self {
-            Self::Simple(name) => SExpr::List(vec![
-                SExpr::Symbol("simple".into()),
-                name.to_sexpr(),
-            ]),
-            Self::Array(inner) => SExpr::List(vec![
-                SExpr::Symbol("array".into()),
-                inner.to_sexpr(),
-            ]),
+            Self::Simple(name) => {
+                SExpr::List(vec![SExpr::Symbol("simple".into()), name.to_sexpr()])
+            }
+            Self::Array(inner) => {
+                SExpr::List(vec![SExpr::Symbol("array".into()), inner.to_sexpr()])
+            }
             Self::Hash => SExpr::Symbol("hash".into()),
             Self::Union(variants) => {
                 let mut items = Vec::with_capacity(variants.len() + 1);
@@ -42,10 +40,9 @@ impl ToSExpr for RubyType {
                     ("constraint", constraint.to_sexpr()),
                 ],
             ),
-            Self::Optional(inner) => SExpr::List(vec![
-                SExpr::Symbol("optional".into()),
-                inner.to_sexpr(),
-            ]),
+            Self::Optional(inner) => {
+                SExpr::List(vec![SExpr::Symbol("optional".into()), inner.to_sexpr()])
+            }
             Self::Any => SExpr::Symbol("any".into()),
         }
     }
@@ -127,14 +124,10 @@ impl FromSExpr for RubyType {
 impl ToSExpr for RbsType {
     fn to_sexpr(&self) -> SExpr {
         match self {
-            Self::Named(name) => SExpr::List(vec![
-                SExpr::Symbol("named".into()),
-                name.to_sexpr(),
-            ]),
-            Self::Array(inner) => SExpr::List(vec![
-                SExpr::Symbol("array".into()),
-                inner.to_sexpr(),
-            ]),
+            Self::Named(name) => SExpr::List(vec![SExpr::Symbol("named".into()), name.to_sexpr()]),
+            Self::Array(inner) => {
+                SExpr::List(vec![SExpr::Symbol("array".into()), inner.to_sexpr()])
+            }
             Self::Hash(key, value) => SExpr::List(vec![
                 SExpr::Symbol("hash".into()),
                 key.to_sexpr(),
@@ -148,14 +141,12 @@ impl ToSExpr for RbsType {
                 }
                 SExpr::List(items)
             }
-            Self::StringLiteral(s) => SExpr::List(vec![
-                SExpr::Symbol("string-literal".into()),
-                s.to_sexpr(),
-            ]),
-            Self::Nilable(inner) => SExpr::List(vec![
-                SExpr::Symbol("nilable".into()),
-                inner.to_sexpr(),
-            ]),
+            Self::StringLiteral(s) => {
+                SExpr::List(vec![SExpr::Symbol("string-literal".into()), s.to_sexpr()])
+            }
+            Self::Nilable(inner) => {
+                SExpr::List(vec![SExpr::Symbol("nilable".into()), inner.to_sexpr()])
+            }
             Self::Untyped => SExpr::Symbol("untyped".into()),
         }
     }

@@ -1,6 +1,6 @@
 use proptest::prelude::*;
 use regex::Regex;
-use ruby_synthesizer::{RubyNode, RubyType, emit_file, ruby_module, ruby_body, ruby_parent};
+use ruby_synthesizer::{RubyNode, RubyType, emit_file, ruby_body, ruby_module, ruby_parent};
 
 // ── Arbitrary implementations for property-based testing ─────────
 
@@ -77,14 +77,12 @@ proptest! {
 // ── RubyNode structural property tests ───────────────────────────
 
 fn arb_attribute() -> impl Strategy<Value = RubyNode> {
-    (
-        "[a-z][a-z_]{1,10}",
-        arb_ruby_type(),
-        any::<bool>(),
-    ).prop_map(|(name, ty, req)| RubyNode::Attribute {
-        name,
-        type_expr: ty,
-        required: req,
+    ("[a-z][a-z_]{1,10}", arb_ruby_type(), any::<bool>()).prop_map(|(name, ty, req)| {
+        RubyNode::Attribute {
+            name,
+            type_expr: ty,
+            required: req,
+        }
     })
 }
 
@@ -115,7 +113,12 @@ fn arb_types_file() -> impl Strategy<Value = Vec<RubyNode>> {
             RubyNode::Require("pangea/resources/base_attributes".into()),
             RubyNode::Blank,
             RubyNode::Module {
-                path: vec!["Pangea".into(), "Resources".into(), "Test".into(), "Types".into()],
+                path: vec![
+                    "Pangea".into(),
+                    "Resources".into(),
+                    "Test".into(),
+                    "Types".into(),
+                ],
                 body: vec![
                     RubyNode::Include("Dry.Types()".into()),
                     RubyNode::Blank,
@@ -236,19 +239,15 @@ fn macro_equals_manual_construction() {
 fn macro_class_equals_manual() {
     let manual = RubyNode::Module {
         path: vec!["Test".into()],
-        body: vec![
-            RubyNode::Class {
-                name: "Foo".into(),
-                parent: Some("Bar".into()),
-                body: vec![
-                    RubyNode::Attribute {
-                        name: "x".into(),
-                        type_expr: RubyType::simple("T::String"),
-                        required: true,
-                    },
-                ],
-            },
-        ],
+        body: vec![RubyNode::Class {
+            name: "Foo".into(),
+            parent: Some("Bar".into()),
+            body: vec![RubyNode::Attribute {
+                name: "x".into(),
+                type_expr: RubyType::simple("T::String"),
+                required: true,
+            }],
+        }],
     };
     let via_macro = ruby_synthesizer::ruby_module!("Test" => {
         class "Foo" < "Bar" {

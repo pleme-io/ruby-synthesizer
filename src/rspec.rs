@@ -61,7 +61,11 @@ impl DescribeBuilder {
 
     /// Add a `context` block.
     #[must_use]
-    pub fn context(mut self, name: &str, f: impl FnOnce(DescribeBuilder) -> DescribeBuilder) -> Self {
+    pub fn context(
+        mut self,
+        name: &str,
+        f: impl FnOnce(DescribeBuilder) -> DescribeBuilder,
+    ) -> Self {
         let inner = f(DescribeBuilder {
             subject: String::new(),
             body: Vec::new(),
@@ -88,7 +92,10 @@ impl DescribeBuilder {
     pub fn it_behaves_like(mut self, name: &str, params: Vec<(&str, &str)>) -> Self {
         self.body.push(RubyNode::ItBehavesLike {
             name: name.to_string(),
-            params: params.into_iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            params: params
+                .into_iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect(),
         });
         self
     }
@@ -272,8 +279,12 @@ macro_rules! ruby_body {
 
 #[macro_export]
 macro_rules! ruby_parent {
-    () => { None };
-    ($parent:expr) => { Some($parent.to_string()) };
+    () => {
+        None
+    };
+    ($parent:expr) => {
+        Some($parent.to_string())
+    };
 }
 
 #[cfg(test)]
@@ -284,11 +295,14 @@ mod tests {
     #[test]
     fn fluent_describe_builder() {
         let spec = RSpecBuilder::describe("'pangea-porkbun type purity'")
-            .it_behaves_like("a pure typed provider", vec![
-                ("provider_module", "Pangea::Resources::Porkbun"),
-                ("types_module", "Pangea::Resources::Porkbun::Types"),
-                ("lib_path", "File.expand_path('../../lib', __dir__)"),
-            ])
+            .it_behaves_like(
+                "a pure typed provider",
+                vec![
+                    ("provider_module", "Pangea::Resources::Porkbun"),
+                    ("types_module", "Pangea::Resources::Porkbun::Types"),
+                    ("lib_path", "File.expand_path('../../lib', __dir__)"),
+                ],
+            )
             .build();
 
         let output = spec.emit(0);
@@ -301,8 +315,7 @@ mod tests {
     fn fluent_it_with_expect() {
         let spec = RSpecBuilder::describe("'my test'")
             .it("returns 42", |b| {
-                b.expect("result", "to eq(42)")
-                 .expect("other", "to be_nil")
+                b.expect("result", "to eq(42)").expect("other", "to be_nil")
             })
             .build();
 

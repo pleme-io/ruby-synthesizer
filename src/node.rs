@@ -18,11 +18,17 @@ pub struct MethodParam {
 
 impl MethodParam {
     pub fn required(name: impl Into<String>) -> Self {
-        Self { name: name.into(), default: None }
+        Self {
+            name: name.into(),
+            default: None,
+        }
     }
 
     pub fn with_default(name: impl Into<String>, default: impl Into<String>) -> Self {
-        Self { name: name.into(), default: Some(default.into()) }
+        Self {
+            name: name.into(),
+            default: Some(default.into()),
+        }
     }
 }
 
@@ -41,7 +47,6 @@ pub enum AccessorMode {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RubyNode {
     // ── Pragmas & comments ─────────────────────────────────────────
-
     /// `# frozen_string_literal: true`
     FrozenStringLiteral,
 
@@ -52,7 +57,6 @@ pub enum RubyNode {
     Blank,
 
     // ── Imports ────────────────────────────────────────────────────
-
     /// `require 'path'`
     Require(String),
 
@@ -60,7 +64,6 @@ pub enum RubyNode {
     RequireRelative(String),
 
     // ── Declarations ──────────────────────────────────────────────
-
     /// `module Path::To::Mod ... end`
     Module {
         path: Vec<String>,
@@ -78,15 +81,11 @@ pub enum RubyNode {
     },
 
     // ── Statements ────────────────────────────────────────────────
-
     /// `include ModuleName`
     Include(String),
 
     /// `T = Pangea::Resources::Provider::Types` (constant assignment)
-    ConstAssign {
-        name: String,
-        value: String,
-    },
+    ConstAssign { name: String, value: String },
 
     /// `NAME = <typed RubyNode expression>` — typed peer of
     /// [`ConstAssign`]. Use when the right-hand side is a structured
@@ -108,10 +107,7 @@ pub enum RubyNode {
     /// assert!(node.emit(0).contains("DEFAULT_NODE_GROUPS"));
     /// assert!(node.emit(0).contains(".freeze"));
     /// ```
-    ConstAssignNode {
-        name: String,
-        value: Box<RubyNode>,
-    },
+    ConstAssignNode { name: String, value: Box<RubyNode> },
 
     /// `attribute :name, Type` or `attribute? :name, Type.optional`
     Attribute {
@@ -144,12 +140,8 @@ pub enum RubyNode {
     RegistryCall(String),
 
     // ── Pangea DSL ────────────────────────────────────────────────
-
     /// `template :name do ... end`
-    PangeaTemplate {
-        name: String,
-        body: Vec<RubyNode>,
-    },
+    PangeaTemplate { name: String, body: Vec<RubyNode> },
 
     /// `provider :name do ... end` or `provider :name, key: value`
     PangeaProvider {
@@ -159,9 +151,7 @@ pub enum RubyNode {
     },
 
     /// `terraform do ... end`
-    PangeaTerraform {
-        body: Vec<RubyNode>,
-    },
+    PangeaTerraform { body: Vec<RubyNode> },
 
     /// `[receiver.]resource_type(:symbol_name, { key: value, ... })`
     /// e.g., `synth.aws_route53_zone(:name, { name: domain, ... })`
@@ -182,15 +172,10 @@ pub enum RubyNode {
     },
 
     /// `Pangea::Secrets.configure(sops_file: ...)`
-    PangeaSecretsConfig {
-        sops_file: String,
-    },
+    PangeaSecretsConfig { sops_file: String },
 
     /// `Pangea::RemoteState.configure(bucket: ..., region: ...)`
-    PangeaRemoteStateConfig {
-        bucket: String,
-        region: String,
-    },
+    PangeaRemoteStateConfig { bucket: String, region: String },
 
     /// `Pangea::RemoteState.output(template: ..., output: ..., state_key: ...)`
     PangeaRemoteStateOutput {
@@ -214,16 +199,10 @@ pub enum RubyNode {
     },
 
     /// `ENV['KEY'] ||= expr`
-    EnvAssign {
-        key: String,
-        value: String,
-    },
+    EnvAssign { key: String, value: String },
 
     /// `variable = expr`
-    Assignment {
-        variable: String,
-        value: String,
-    },
+    Assignment { variable: String, value: String },
 
     /// `variable = <typed RubyNode expression>` — typed peer of
     /// [`Assignment`], exactly as [`ConstAssignNode`] is the typed peer of
@@ -267,9 +246,7 @@ pub enum RubyNode {
     },
 
     /// `required_providers({ name: { source: 'source' } })`
-    RequiredProviders {
-        providers: Vec<(String, String)>,
-    },
+    RequiredProviders { providers: Vec<(String, String)> },
 
     /// Generic Ruby block: `header do [|params|] ... end`
     /// Used for any `name do ... end` pattern (group, namespace, gemspec, etc.)
@@ -281,10 +258,7 @@ pub enum RubyNode {
 
     /// DSL method call without parens: `method_name value`
     /// Used for Ruby DSL setters in block context (provider blocks, etc.)
-    DslSetter {
-        method: String,
-        value: String,
-    },
+    DslSetter { method: String, value: String },
 
     /// `method_name arg, arg, key: arg` — typed peer of [`DslSetter`],
     /// paren-less like it, but taking an argument *list* of typed nodes
@@ -308,13 +282,9 @@ pub enum RubyNode {
     /// };
     /// assert_eq!(node.emit(0), "s.add_dependency 'pangea-core', '~> 0.2'");
     /// ```
-    DslCall {
-        method: String,
-        args: Vec<RubyNode>,
-    },
+    DslCall { method: String, args: Vec<RubyNode> },
 
     // ── General-purpose typed nodes ─────────────────────────────
-
     /// Bare identifier: `some_var`, `self`, `true`, `region`
     Ident(String),
 
@@ -361,10 +331,7 @@ pub enum RubyNode {
     /// Distinct from [`HashLit`], which always brackets its pairs — `gem 'x',
     /// path: '../x'` is a keyword argument, not the hash `{ path: '../x' }`.
     /// Only meaningful inside an argument list ([`DslCall`], [`Call`]).
-    KeywordArg {
-        name: String,
-        value: Box<RubyNode>,
-    },
+    KeywordArg { name: String, value: Box<RubyNode> },
 
     /// Constant / module path: `Pangea::Architectures::SecureVpc`
     ConstPath(Vec<String>),
@@ -376,7 +343,6 @@ pub enum RubyNode {
     },
 
     // ── Architecture generation nodes ───────────────────────────────
-
     /// `def self.method_name(param1, param2 = default) ... end`
     MethodDef {
         receiver: Option<String>,
@@ -424,7 +390,6 @@ pub enum RubyNode {
     BodyLines(Vec<String>),
 
     // ── RSpec ──────────────────────────────────────────────────────
-
     /// `RSpec.describe 'subject' do ... end`
     Describe {
         subject: String,
@@ -439,16 +404,10 @@ pub enum RubyNode {
     },
 
     /// `context 'name' do ... end`
-    Context {
-        name: String,
-        body: Vec<RubyNode>,
-    },
+    Context { name: String, body: Vec<RubyNode> },
 
     /// `it 'name' do ... end`
-    It {
-        name: String,
-        body: Vec<RubyNode>,
-    },
+    It { name: String, body: Vec<RubyNode> },
 
     /// `it_behaves_like 'name', key: value, ...`
     ItBehavesLike {
@@ -457,16 +416,10 @@ pub enum RubyNode {
     },
 
     /// `let(:name) { expr }`
-    Let {
-        name: String,
-        expr: String,
-    },
+    Let { name: String, expr: String },
 
     /// `expect(subject).matcher`
-    Expect {
-        subject: String,
-        matcher: String,
-    },
+    Expect { subject: String, matcher: String },
 }
 
 impl RubyNode {
@@ -508,7 +461,11 @@ impl RubyNode {
             Self::InlineModuleDecl(parts) => {
                 let opens: Vec<String> = parts.iter().map(|p| format!("module {p}")).collect();
                 let closes = "end; ".repeat(parts.len());
-                format!("{pad}{}; {}", opens.join("; "), closes.trim_end_matches("; "))
+                format!(
+                    "{pad}{}; {}",
+                    opens.join("; "),
+                    closes.trim_end_matches("; ")
+                )
             }
 
             // Class
@@ -538,7 +495,11 @@ impl RubyNode {
                 format!("{pad}{name} = {stripped}")
             }
 
-            Self::Attribute { name, type_expr, required } => {
+            Self::Attribute {
+                name,
+                type_expr,
+                required,
+            } => {
                 let keyword = if *required { "attribute" } else { "attribute?" };
                 let ty = if *required {
                     type_expr.emit()
@@ -548,8 +509,22 @@ impl RubyNode {
                 format!("{pad}{keyword} :{name}, {ty}")
             }
 
-            Self::DefineResource { tf_type, attrs_class, outputs, map, map_present, map_bool } |
-            Self::DefineData { tf_type, attrs_class, outputs, map, map_present, map_bool } => {
+            Self::DefineResource {
+                tf_type,
+                attrs_class,
+                outputs,
+                map,
+                map_present,
+                map_bool,
+            }
+            | Self::DefineData {
+                tf_type,
+                attrs_class,
+                outputs,
+                map,
+                map_present,
+                map_bool,
+            } => {
                 let kind = if matches!(self, Self::DefineResource { .. }) {
                     "define_resource"
                 } else {
@@ -559,11 +534,12 @@ impl RubyNode {
                 out.push_str(&format!("{pad}  attributes_class: {attrs_class},\n"));
 
                 // outputs
-                let output_pairs: Vec<String> = outputs
-                    .iter()
-                    .map(|(k, v)| format!("{k}: :{v}"))
-                    .collect();
-                out.push_str(&format!("{pad}  outputs: {{ {} }}", output_pairs.join(", ")));
+                let output_pairs: Vec<String> =
+                    outputs.iter().map(|(k, v)| format!("{k}: :{v}")).collect();
+                out.push_str(&format!(
+                    "{pad}  outputs: {{ {} }}",
+                    output_pairs.join(", ")
+                ));
 
                 // map categories
                 if !map.is_empty() {
@@ -587,7 +563,6 @@ impl RubyNode {
             }
 
             // ── Pangea DSL ────────────────────────────────────────────
-
             Self::PangeaTemplate { name, body } => {
                 let mut out = format!("{pad}template :{name} do\n");
                 for node in body {
@@ -600,7 +575,8 @@ impl RubyNode {
 
             Self::PangeaProvider { name, args, body } => {
                 if body.is_empty() && !args.is_empty() {
-                    let args_str = args.iter()
+                    let args_str = args
+                        .iter()
                         .map(|(k, v)| format!("{k}: {v}"))
                         .collect::<Vec<_>>()
                         .join(", ");
@@ -626,7 +602,12 @@ impl RubyNode {
                 out
             }
 
-            Self::PangeaResourceCall { receiver, resource_type, symbol, args } => {
+            Self::PangeaResourceCall {
+                receiver,
+                resource_type,
+                symbol,
+                args,
+            } => {
                 let rcv = match receiver {
                     Some(r) => format!("{r}."),
                     None => String::new(),
@@ -634,7 +615,8 @@ impl RubyNode {
                 if args.is_empty() {
                     format!("{pad}{rcv}{resource_type}(:\"{symbol}\", {{}})")
                 } else {
-                    let args_str = args.iter()
+                    let args_str = args
+                        .iter()
                         .map(|(k, v)| format!("{pad}  {k}: {v}"))
                         .collect::<Vec<_>>()
                         .join(",\n");
@@ -642,7 +624,12 @@ impl RubyNode {
                 }
             }
 
-            Self::PangeaOutput { output_type, name, value, description } => {
+            Self::PangeaOutput {
+                output_type,
+                name,
+                value,
+                description,
+            } => {
                 let method = match output_type {
                     PangeaOutputType::Display => "display_output",
                     PangeaOutputType::Data => "data_output",
@@ -659,31 +646,37 @@ impl RubyNode {
             }
 
             Self::PangeaRemoteStateConfig { bucket, region } => {
-                format!(
-                    "{pad}Pangea::RemoteState.configure(bucket: {bucket}, region: {region})"
-                )
+                format!("{pad}Pangea::RemoteState.configure(bucket: {bucket}, region: {region})")
             }
 
-            Self::PangeaRemoteStateOutput { template, output, state_key } => {
+            Self::PangeaRemoteStateOutput {
+                template,
+                output,
+                state_key,
+            } => {
                 format!(
                     "{pad}Pangea::RemoteState.output(template: '{template}', output: :{output}, state_key: '{state_key}')"
                 )
             }
 
-            Self::ExtendModule { receiver, module_path, guard_method } => {
+            Self::ExtendModule {
+                receiver,
+                module_path,
+                guard_method,
+            } => {
                 let rcv = receiver.as_deref().unwrap_or("self");
                 match guard_method {
-                    Some(method) => format!("{pad}{rcv}.extend({module_path}) unless {rcv}.respond_to?(:{method})"),
+                    Some(method) => format!(
+                        "{pad}{rcv}.extend({module_path}) unless {rcv}.respond_to?(:{method})"
+                    ),
                     None => format!("{pad}{rcv}.extend({module_path})"),
                 }
             }
 
-            Self::EnvFetch { key, default } => {
-                match default {
-                    Some(d) => format!("{pad}ENV.fetch('{key}', '{d}')"),
-                    None => format!("{pad}ENV.fetch('{key}')"),
-                }
-            }
+            Self::EnvFetch { key, default } => match default {
+                Some(d) => format!("{pad}ENV.fetch('{key}', '{d}')"),
+                None => format!("{pad}ENV.fetch('{key}')"),
+            },
 
             Self::EnvAssign { key, value } => {
                 format!("{pad}ENV['{key}'] ||= {value}")
@@ -722,7 +715,11 @@ impl RubyNode {
                 out
             }
 
-            Self::BeginRescue { body, rescue_class, rescue_body } => {
+            Self::BeginRescue {
+                body,
+                rescue_class,
+                rescue_body,
+            } => {
                 let mut out = format!("{pad}begin\n");
                 for node in body {
                     out.push_str(&node.emit(indent + 1));
@@ -741,14 +738,19 @@ impl RubyNode {
                 if providers.is_empty() {
                     return format!("{pad}required_providers({{}})");
                 }
-                let providers_str = providers.iter()
+                let providers_str = providers
+                    .iter()
                     .map(|(name, source)| format!("{pad}  {name}: {{ source: '{source}' }}"))
                     .collect::<Vec<_>>()
                     .join(",\n");
                 format!("{pad}required_providers({{\n{providers_str},\n{pad}}})")
             }
 
-            Self::DoBlock { header, params, body } => {
+            Self::DoBlock {
+                header,
+                params,
+                body,
+            } => {
                 let params_str = match params {
                     Some(p) => format!(" |{p}|"),
                     None => String::new(),
@@ -788,7 +790,8 @@ impl RubyNode {
                 if pairs.is_empty() {
                     format!("{pad}{{}}")
                 } else if pairs.len() <= 3 {
-                    let inner: Vec<String> = pairs.iter()
+                    let inner: Vec<String> = pairs
+                        .iter()
                         .map(|(k, v)| format!("{k}: {}", v.emit(0)))
                         .collect();
                     format!("{pad}{{ {} }}", inner.join(", "))
@@ -806,7 +809,8 @@ impl RubyNode {
                 if pairs.is_empty() {
                     format!("{pad}{{}}")
                 } else if pairs.len() <= 3 {
-                    let inner: Vec<String> = pairs.iter()
+                    let inner: Vec<String> = pairs
+                        .iter()
                         .map(|(k, v)| format!("'{k}' => {}", v.emit(0)))
                         .collect();
                     format!("{pad}{{ {} }}", inner.join(", "))
@@ -820,7 +824,11 @@ impl RubyNode {
                     out
                 }
             }
-            Self::Call { receiver, method, args } => {
+            Self::Call {
+                receiver,
+                method,
+                args,
+            } => {
                 let rcv = match receiver {
                     Some(r) => format!("{}.", r.emit(0)),
                     None => String::new(),
@@ -840,19 +848,26 @@ impl RubyNode {
             }
             Self::ConstPath(parts) => format!("{pad}{}", parts.join("::")),
             Self::MergeCall { receiver, hash } => {
-                let inner: Vec<String> = hash.iter()
+                let inner: Vec<String> = hash
+                    .iter()
                     .map(|(k, v)| format!("{k}: {}", v.emit(0)))
                     .collect();
                 format!("{pad}{}.merge({})", receiver.emit(0), inner.join(", "))
             }
 
             // Architecture generation nodes
-            Self::MethodDef { receiver, name, params, body } => {
+            Self::MethodDef {
+                receiver,
+                name,
+                params,
+                body,
+            } => {
                 let rcv = match receiver {
                     Some(r) => format!("{r}."),
                     None => String::new(),
                 };
-                let params_str = params.iter()
+                let params_str = params
+                    .iter()
                     .map(|p| match &p.default {
                         Some(d) => format!("{} = {d}", p.name),
                         None => p.name.clone(),
@@ -872,7 +887,8 @@ impl RubyNode {
                 if entries.is_empty() {
                     format!("{pad}{name} = {{}}.freeze")
                 } else if entries.len() <= 2 {
-                    let pairs: Vec<String> = entries.iter()
+                    let pairs: Vec<String> = entries
+                        .iter()
                         .map(|(k, v)| format!("'{k}' => '{v}'"))
                         .collect();
                     format!("{pad}{name} = {{ {} }}.freeze", pairs.join(", "))
@@ -893,7 +909,11 @@ impl RubyNode {
                     AccessorMode::Writer => "attr_writer",
                     AccessorMode::Accessor => "attr_accessor",
                 };
-                let symbols = names.iter().map(|n| format!(":{n}")).collect::<Vec<_>>().join(", ");
+                let symbols = names
+                    .iter()
+                    .map(|n| format!(":{n}"))
+                    .collect::<Vec<_>>()
+                    .join(", ");
                 format!("{pad}{directive} {symbols}")
             }
 
@@ -1020,7 +1040,11 @@ fn escape_single_quoted(value: &str) -> String {
 
 /// Format a list of strings as Ruby symbols: `[:a, :b, :c]`
 fn format_symbol_list(names: &[String]) -> String {
-    names.iter().map(|n| format!(":{n}")).collect::<Vec<_>>().join(", ")
+    names
+        .iter()
+        .map(|n| format!(":{n}"))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 #[cfg(test)]
@@ -1046,7 +1070,12 @@ mod tests {
     #[test]
     fn module_with_class() {
         let node = RubyNode::Module {
-            path: vec!["Pangea".into(), "Resources".into(), "Porkbun".into(), "Types".into()],
+            path: vec![
+                "Pangea".into(),
+                "Resources".into(),
+                "Porkbun".into(),
+                "Types".into(),
+            ],
             body: vec![
                 RubyNode::Include("Dry.Types()".into()),
                 RubyNode::Blank,
@@ -1090,7 +1119,10 @@ mod tests {
             type_expr: RubyType::simple("T::String"),
             required: false,
         };
-        assert_eq!(node.emit(2), "    attribute? :description, T::String.optional");
+        assert_eq!(
+            node.emit(2),
+            "    attribute? :description, T::String.optional"
+        );
     }
 
     #[test]
@@ -1113,7 +1145,10 @@ mod tests {
     #[test]
     fn inline_module_decl() {
         let node = RubyNode::InlineModuleDecl(vec![
-            "Pangea".into(), "Resources".into(), "AWS".into(), "Types".into(),
+            "Pangea".into(),
+            "Resources".into(),
+            "AWS".into(),
+            "Types".into(),
         ]);
         assert_eq!(
             node.emit(0),
@@ -1125,17 +1160,13 @@ mod tests {
     fn rspec_describe_with_it() {
         let node = RubyNode::Describe {
             subject: "'my test'".into(),
-            body: vec![
-                RubyNode::It {
-                    name: "does something".into(),
-                    body: vec![
-                        RubyNode::Expect {
-                            subject: "result".into(),
-                            matcher: "to eq(42)".into(),
-                        },
-                    ],
-                },
-            ],
+            body: vec![RubyNode::It {
+                name: "does something".into(),
+                body: vec![RubyNode::Expect {
+                    subject: "result".into(),
+                    matcher: "to eq(42)".into(),
+                }],
+            }],
         };
         let output = node.emit(0);
         assert!(output.contains("RSpec.describe 'my test' do"));
@@ -1148,9 +1179,18 @@ mod tests {
         let node = RubyNode::ItBehavesLike {
             name: "a pure typed provider".into(),
             params: vec![
-                ("provider_module".into(), "Pangea::Resources::Porkbun".into()),
-                ("types_module".into(), "Pangea::Resources::Porkbun::Types".into()),
-                ("lib_path".into(), "File.expand_path('../../lib', __dir__)".into()),
+                (
+                    "provider_module".into(),
+                    "Pangea::Resources::Porkbun".into(),
+                ),
+                (
+                    "types_module".into(),
+                    "Pangea::Resources::Porkbun::Types".into(),
+                ),
+                (
+                    "lib_path".into(),
+                    "File.expand_path('../../lib', __dir__)".into(),
+                ),
             ],
         };
         let output = node.emit(0);
@@ -1179,12 +1219,10 @@ mod tests {
                 MethodParam::required("synth"),
                 MethodParam::with_default("config", "{}"),
             ],
-            body: vec![
-                RubyNode::Assignment {
-                    variable: "config".into(),
-                    value: "Types::Config.new(config).to_h".into(),
-                },
-            ],
+            body: vec![RubyNode::Assignment {
+                variable: "config".into(),
+                value: "Types::Config.new(config).to_h".into(),
+            }],
         };
         let output = node.emit(2);
         assert!(output.contains("def self.build(synth, config = {})"));
@@ -1217,11 +1255,12 @@ mod tests {
     fn frozen_const_hash_small() {
         let node = RubyNode::FrozenConstHash {
             name: "CONTROLS".into(),
-            entries: vec![
-                ("SC-7".into(), "NIST 800-53".into()),
-            ],
+            entries: vec![("SC-7".into(), "NIST 800-53".into())],
         };
-        assert_eq!(node.emit(0), "CONTROLS = { 'SC-7' => 'NIST 800-53' }.freeze");
+        assert_eq!(
+            node.emit(0),
+            "CONTROLS = { 'SC-7' => 'NIST 800-53' }.freeze"
+        );
     }
 
     #[test]
@@ -1248,8 +1287,16 @@ mod tests {
             ("B".into(), "2".into()),
             ("C".into(), "3".into()),
         ];
-        let a = RubyNode::FrozenConstHash { name: "X".into(), entries: entries.clone() }.emit(0);
-        let b = RubyNode::FrozenConstHash { name: "X".into(), entries }.emit(0);
+        let a = RubyNode::FrozenConstHash {
+            name: "X".into(),
+            entries: entries.clone(),
+        }
+        .emit(0);
+        let b = RubyNode::FrozenConstHash {
+            name: "X".into(),
+            entries,
+        }
+        .emit(0);
         assert_eq!(a, b);
     }
 
@@ -1279,7 +1326,10 @@ mod tests {
         };
         let output = node.emit(0);
         assert!(output.contains("def self.build(synth, config = {})"));
-        assert!(output.contains("self.extend(Pangea::Resources::AWS) unless self.respond_to?(:aws_vpc)"));
+        assert!(
+            output
+                .contains("self.extend(Pangea::Resources::AWS) unless self.respond_to?(:aws_vpc)")
+        );
         assert!(output.contains("aws_ebs_encryption_by_default"));
         assert!(output.contains("end"));
     }
@@ -1317,7 +1367,10 @@ mod tests {
 
     #[test]
     fn alias_directive() {
-        let node = RubyNode::Alias { new_name: "new_method".into(), old_name: "old_method".into() };
+        let node = RubyNode::Alias {
+            new_name: "new_method".into(),
+            old_name: "old_method".into(),
+        };
         assert_eq!(node.emit(0), "alias new_method old_method");
     }
 
@@ -1328,20 +1381,13 @@ mod tests {
 
     #[test]
     fn body_lines_prefixes_each_line_with_pad() {
-        let node = RubyNode::BodyLines(vec![
-            "a = 1".into(),
-            "b = 2".into(),
-        ]);
+        let node = RubyNode::BodyLines(vec!["a = 1".into(), "b = 2".into()]);
         assert_eq!(node.emit(1), "  a = 1\n  b = 2");
     }
 
     #[test]
     fn body_lines_preserves_blank_lines_without_trailing_space() {
-        let node = RubyNode::BodyLines(vec![
-            "a = 1".into(),
-            String::new(),
-            "b = 2".into(),
-        ]);
+        let node = RubyNode::BodyLines(vec!["a = 1".into(), String::new(), "b = 2".into()]);
         assert_eq!(node.emit(1), "  a = 1\n\n  b = 2");
     }
 
@@ -1373,9 +1419,9 @@ mod tests {
     fn assignment_node_takes_a_structured_right_hand_side() {
         let node = RubyNode::AssignmentNode {
             variable: "s.authors".into(),
-            value: Box::new(RubyNode::ArrayLit(vec![
-                RubyNode::StringLit("Pleme Team".into()),
-            ])),
+            value: Box::new(RubyNode::ArrayLit(vec![RubyNode::StringLit(
+                "Pleme Team".into(),
+            )])),
         };
         assert_eq!(node.emit(1), "  s.authors = ['Pleme Team']");
     }
@@ -1389,14 +1435,24 @@ mod tests {
                 RubyNode::StringLit("~> 0.2".into()),
             ],
         };
-        assert_eq!(with_args.emit(1), "  s.add_dependency 'pangea-core', '~> 0.2'");
+        assert_eq!(
+            with_args.emit(1),
+            "  s.add_dependency 'pangea-core', '~> 0.2'"
+        );
 
-        let bare = RubyNode::DslCall { method: "gemspec".into(), args: vec![] };
+        let bare = RubyNode::DslCall {
+            method: "gemspec".into(),
+            args: vec![],
+        };
         assert_eq!(bare.emit(0), "gemspec");
         // Same degeneracy as its stringly peer with an empty value.
         assert_eq!(
             bare.emit(0),
-            RubyNode::DslSetter { method: "gemspec".into(), value: String::new() }.emit(0)
+            RubyNode::DslSetter {
+                method: "gemspec".into(),
+                value: String::new()
+            }
+            .emit(0)
         );
     }
 
@@ -1414,7 +1470,10 @@ mod tests {
         };
         let out = node.emit(0);
         assert_eq!(out, "gem 'pangea-core', path: '../pangea-core'");
-        assert!(!out.contains('{'), "keyword arg must not brace like HashLit: {out}");
+        assert!(
+            !out.contains('{'),
+            "keyword arg must not brace like HashLit: {out}"
+        );
     }
 
     #[test]
@@ -1479,7 +1538,10 @@ mod tests {
     #[test]
     fn context_escapes_backslash_before_quote_not_after() {
         // Same ordering argument as `StringLit`: backslashes double first.
-        let node = RubyNode::Context { name: r"a\'b".into(), body: vec![] };
+        let node = RubyNode::Context {
+            name: r"a\'b".into(),
+            body: vec![],
+        };
         assert_eq!(node.emit(0), "context 'a\\\\\\'b' do\nend");
     }
 
@@ -1491,15 +1553,27 @@ mod tests {
         // `render_constellation` across this change.
         for plain in ["has path attribute", "when empty", "enforces bounds"] {
             assert_eq!(
-                RubyNode::It { name: plain.into(), body: vec![] }.emit(0),
+                RubyNode::It {
+                    name: plain.into(),
+                    body: vec![]
+                }
+                .emit(0),
                 format!("it '{plain}' do\nend")
             );
             assert_eq!(
-                RubyNode::Context { name: plain.into(), body: vec![] }.emit(0),
+                RubyNode::Context {
+                    name: plain.into(),
+                    body: vec![]
+                }
+                .emit(0),
                 format!("context '{plain}' do\nend")
             );
             assert_eq!(
-                RubyNode::ItBehavesLike { name: plain.into(), params: vec![] }.emit(0),
+                RubyNode::ItBehavesLike {
+                    name: plain.into(),
+                    params: vec![]
+                }
+                .emit(0),
                 format!("it_behaves_like '{plain}'")
             );
         }

@@ -7,7 +7,7 @@
 use proptest::prelude::*;
 
 use ruby_synthesizer::builders::{ResourceFileBuilder, TypesFileBuilder};
-use ruby_synthesizer::{emit_file, RSpecBuilder, RubyNode, RubyType};
+use ruby_synthesizer::{RSpecBuilder, RubyNode, RubyType, emit_file};
 
 // ══════════════════════════════════════════════════════════════════
 // Strategies
@@ -23,19 +23,14 @@ fn arb_ruby_type() -> impl Strategy<Value = RubyType> {
         Just(RubyType::Any),
     ];
 
-    leaf.prop_recursive(
-        3,
-        16,
-        4,
-        |inner| {
-            prop_oneof![
-                inner.clone().prop_map(RubyType::array),
-                inner.clone().prop_map(RubyType::optional),
-                prop::collection::vec(inner.clone(), 2..=4).prop_map(RubyType::union),
-                inner.prop_map(|t| RubyType::constrained(t, "gt?: 0")),
-            ]
-        },
-    )
+    leaf.prop_recursive(3, 16, 4, |inner| {
+        prop_oneof![
+            inner.clone().prop_map(RubyType::array),
+            inner.clone().prop_map(RubyType::optional),
+            prop::collection::vec(inner.clone(), 2..=4).prop_map(RubyType::union),
+            inner.prop_map(|t| RubyType::constrained(t, "gt?: 0")),
+        ]
+    })
 }
 
 /// Generate one of every RubyNode variant at a given indent.
@@ -223,7 +218,10 @@ fn module_nodes_contain_module_and_end() {
         body: vec![RubyNode::Blank],
     };
     let output = node.emit(0);
-    assert!(output.contains("module "), "Module missing 'module' keyword");
+    assert!(
+        output.contains("module "),
+        "Module missing 'module' keyword"
+    );
     assert!(output.contains("end"), "Module missing 'end' keyword");
 }
 
@@ -485,7 +483,9 @@ fn types_builder_ten_classes() {
     assert_eq!(class_count, 10, "should have exactly 10 classes");
 
     // Count T constant assignments
-    let t_count = source.matches("T = Pangea::Resources::Multi::Types").count();
+    let t_count = source
+        .matches("T = Pangea::Resources::Multi::Types")
+        .count();
     assert_eq!(t_count, 10, "should have exactly 10 T constants");
 
     assert!(source.ends_with('\n'));
@@ -574,11 +574,7 @@ fn attribute_count_matches_input() {
             .class("Attrs", |c| {
                 let mut cb = c;
                 for i in 0..n {
-                    cb = cb.attribute(
-                        &format!("attr_{i}"),
-                        RubyType::simple("T::String"),
-                        true,
-                    );
+                    cb = cb.attribute(&format!("attr_{i}"), RubyType::simple("T::String"), true);
                 }
                 cb
             })
@@ -591,10 +587,7 @@ fn attribute_count_matches_input() {
                 trimmed.starts_with("attribute :") || trimmed.starts_with("attribute? :")
             })
             .count();
-        assert_eq!(
-            attr_count, n,
-            "expected {n} attributes, got {attr_count}"
-        );
+        assert_eq!(attr_count, n, "expected {n} attributes, got {attr_count}");
     }
 }
 
@@ -683,7 +676,10 @@ mod iac_bridge_proofs {
             emit.starts_with("T::String.constrained("),
             "100-value enum should be constrained"
         );
-        assert!(emit.contains("included_in:"), "should have included_in constraint");
+        assert!(
+            emit.contains("included_in:"),
+            "should have included_in constraint"
+        );
 
         // Verify all 100 values present
         for v in &values {
@@ -819,54 +815,44 @@ fn arb_iac_type_full() -> impl Strategy<Value = iac_forge::ir::IacType> {
         Just(IacType::Any),
     ];
 
-    leaf.prop_recursive(
-        3,
-        32,
-        6,
-        |inner| {
-            prop_oneof![
-                inner.clone().prop_map(|t| IacType::List(Box::new(t))),
-                inner.clone().prop_map(|t| IacType::Set(Box::new(t))),
-                inner.clone().prop_map(|t| IacType::Map(Box::new(t))),
-                (
-                    "[a-z][a-z_]{1,8}",
-                    prop::collection::vec(
-                        (
-                            "[a-z][a-z_]{1,8}",
-                            inner.clone(),
-                            any::<bool>(),
-                        )
-                            .prop_map(|(name, ty, req)| IacAttribute {
-                                api_name: name.clone(),
-                                canonical_name: name,
-                                description: String::new(),
-                                iac_type: ty,
-                                required: req,
-                                optional: !req,
-                                computed: false,
-                                sensitive: false,
-                                json_encoded: false,
-                                immutable: false,
-                                default_value: None,
-                                enum_values: None,
-                                read_path: None,
-                                update_only: false,
-                            }),
-                        0..=3,
+    leaf.prop_recursive(3, 32, 6, |inner| {
+        prop_oneof![
+            inner.clone().prop_map(|t| IacType::List(Box::new(t))),
+            inner.clone().prop_map(|t| IacType::Set(Box::new(t))),
+            inner.clone().prop_map(|t| IacType::Map(Box::new(t))),
+            (
+                "[a-z][a-z_]{1,8}",
+                prop::collection::vec(
+                    ("[a-z][a-z_]{1,8}", inner.clone(), any::<bool>(),).prop_map(
+                        |(name, ty, req)| IacAttribute {
+                            api_name: name.clone(),
+                            canonical_name: name,
+                            description: String::new(),
+                            iac_type: ty,
+                            required: req,
+                            optional: !req,
+                            computed: false,
+                            sensitive: false,
+                            json_encoded: false,
+                            immutable: false,
+                            default_value: None,
+                            enum_values: None,
+                            read_path: None,
+                            update_only: false,
+                        }
                     ),
-                )
-                    .prop_map(|(name, fields)| IacType::Object { name, fields }),
-                (
-                    prop::collection::vec("[a-z]{2,6}", 0..=5),
-                    inner.clone(),
-                )
-                    .prop_map(|(values, underlying)| IacType::Enum {
-                        values,
-                        underlying: Box::new(underlying),
-                    }),
-            ]
-        },
-    )
+                    0..=3,
+                ),
+            )
+                .prop_map(|(name, fields)| IacType::Object { name, fields }),
+            (prop::collection::vec("[a-z]{2,6}", 0..=5), inner.clone(),).prop_map(
+                |(values, underlying)| IacType::Enum {
+                    values,
+                    underlying: Box::new(underlying),
+                }
+            ),
+        ]
+    })
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -887,19 +873,15 @@ fn emit_file_hundred_nodes_no_panic() {
     for i in 0..20 {
         nodes.push(RubyNode::Module {
             path: vec![format!("Mod{i}")],
-            body: vec![
-                RubyNode::Class {
-                    name: format!("Class{i}"),
-                    parent: Some("Base".into()),
-                    body: vec![
-                        RubyNode::Attribute {
-                            name: format!("field_{i}"),
-                            type_expr: RubyType::simple("T::String"),
-                            required: true,
-                        },
-                    ],
-                },
-            ],
+            body: vec![RubyNode::Class {
+                name: format!("Class{i}"),
+                parent: Some("Base".into()),
+                body: vec![RubyNode::Attribute {
+                    name: format!("field_{i}"),
+                    type_expr: RubyType::simple("T::String"),
+                    required: true,
+                }],
+            }],
         });
     }
 
@@ -929,13 +911,11 @@ fn random_node_tree_balanced() {
             RubyNode::Class {
                 name: "B".into(),
                 parent: Some("A".into()),
-                body: vec![
-                    RubyNode::Attribute {
-                        name: "x".into(),
-                        type_expr: RubyType::simple("T::String"),
-                        required: true,
-                    },
-                ],
+                body: vec![RubyNode::Attribute {
+                    name: "x".into(),
+                    type_expr: RubyType::simple("T::String"),
+                    required: true,
+                }],
             },
         ],
     };
@@ -948,11 +928,11 @@ fn random_node_tree_balanced() {
     let output = emit_file(&[outer]);
     let opens = output.matches("module ").count() + output.matches("class ").count();
     // Count standalone "end" lines
-    let ends = output
-        .lines()
-        .filter(|l| l.trim() == "end")
-        .count();
-    assert_eq!(opens, ends, "tree must have balanced opens ({opens}) and ends ({ends})");
+    let ends = output.lines().filter(|l| l.trim() == "end").count();
+    assert_eq!(
+        opens, ends,
+        "tree must have balanced opens ({opens}) and ends ({ends})"
+    );
 }
 
 /// Proof: Output never contains null bytes.
@@ -987,13 +967,11 @@ fn rspec_builder_complex_structure() {
     let spec = RSpecBuilder::describe("'complex test'")
         .let_bind("instance", "described_class.new")
         .context("when valid", |b| {
-            b.it("passes", |b| {
-                b.expect("instance.valid?", "to be true")
-            })
-            .it("has attributes", |b| {
-                b.expect("instance.name", "to eq('test')")
-                    .expect("instance.id", "not_to be_nil")
-            })
+            b.it("passes", |b| b.expect("instance.valid?", "to be true"))
+                .it("has attributes", |b| {
+                    b.expect("instance.name", "to eq('test')")
+                        .expect("instance.id", "not_to be_nil")
+                })
         })
         .context("when invalid", |b| {
             b.it("fails", |b| b.expect("instance.valid?", "to be false"))
@@ -1024,9 +1002,7 @@ fn rspec_builder_complex_structure() {
 fn shared_examples_builder_structure() {
     let shared = RSpecBuilder::shared_examples("typed provider", "mod, types")
         .let_bind("provider", "mod")
-        .it("has types", |b| {
-            b.expect("types", "not_to be_nil")
-        })
+        .it("has types", |b| b.expect("types", "not_to be_nil"))
         .build();
 
     let output = shared.emit(0);
@@ -1090,10 +1066,7 @@ fn const_assign_exact_format() {
         value: "Pangea::Resources::Test::Types".into(),
     };
     assert_eq!(node.emit(0), "T = Pangea::Resources::Test::Types");
-    assert_eq!(
-        node.emit(2),
-        "    T = Pangea::Resources::Test::Types"
-    );
+    assert_eq!(node.emit(2), "    T = Pangea::Resources::Test::Types");
 }
 
 /// Proof: RegistryCall format is exact.

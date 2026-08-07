@@ -67,7 +67,9 @@ impl TypesRbsFileBuilder {
     /// restricted to attribute operations.
     #[must_use]
     pub fn class(mut self, name: &str, f: impl FnOnce(RbsClassBuilder) -> RbsClassBuilder) -> Self {
-        let builder = f(RbsClassBuilder { attributes: Vec::new() });
+        let builder = f(RbsClassBuilder {
+            attributes: Vec::new(),
+        });
         self.classes.push(RbsClassDef {
             name: name.to_string(),
             attributes: builder.attributes,

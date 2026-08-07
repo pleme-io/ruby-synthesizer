@@ -33,14 +33,14 @@
 //! let ruby_source = emit_file(&file);
 //! ```
 
-mod node;
-mod types;
-mod rbs_types;
-mod rbs_builder;
-mod emitter;
-mod rspec;
 pub mod builders;
+mod emitter;
+mod node;
+mod rbs_builder;
+mod rbs_types;
+mod rspec;
 mod synthesizer_core_impl;
+mod types;
 
 #[cfg(feature = "iac-bridge")]
 pub mod iac_bridge;
@@ -50,9 +50,9 @@ pub mod iac_bridge;
 #[cfg(feature = "iac-bridge")]
 mod sexpr;
 
-pub use node::{MethodParam, PangeaOutputType, RubyNode};
-pub use types::RubyType;
-pub use rbs_types::RbsType;
-pub use rbs_builder::{RbsClassBuilder, TypesRbsFileBuilder};
 pub use emitter::emit_file;
+pub use node::{MethodParam, PangeaOutputType, RubyNode};
+pub use rbs_builder::{RbsClassBuilder, TypesRbsFileBuilder};
+pub use rbs_types::RbsType;
 pub use rspec::RSpecBuilder;
+pub use types::RubyType;

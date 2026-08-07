@@ -13,7 +13,7 @@ use regex::Regex;
 use std::collections::HashSet;
 
 use ruby_synthesizer::builders::{ResourceFileBuilder, TypesFileBuilder};
-use ruby_synthesizer::{emit_file, RubyNode, RubyType};
+use ruby_synthesizer::{RubyNode, RubyType, emit_file};
 
 // ══════════════════════════════════════════════════════════════════
 // Strategies — random infrastructure configurations
@@ -27,8 +27,10 @@ fn arb_provider_name() -> impl Strategy<Value = String> {
 /// Generate random attribute names: lowercase + underscores.
 fn arb_attr_name() -> impl Strategy<Value = String> {
     "[a-z][a-z_]{1,15}".prop_filter("no ruby keywords", |s| {
-        !["end", "def", "class", "module", "do", "if", "else", "begin", "rescue"]
-            .contains(&s.as_str())
+        ![
+            "end", "def", "class", "module", "do", "if", "else", "begin", "rescue",
+        ]
+        .contains(&s.as_str())
     })
 }
 
@@ -81,16 +83,14 @@ fn arb_unique_attrs(min: usize, max: usize) -> impl Strategy<Value = Vec<String>
 }
 
 /// Generate a random TypesFileBuilder with N classes, each with M attributes.
-fn arb_types_file_builder() -> impl Strategy<Value = (String, Vec<(String, Vec<(String, RubyType, bool)>)>)> {
+fn arb_types_file_builder()
+-> impl Strategy<Value = (String, Vec<(String, Vec<(String, RubyType, bool)>)>)> {
     (
         arb_provider_name(),
         prop::collection::vec(
             (
                 arb_class_name(),
-                prop::collection::vec(
-                    (arb_attr_name(), arb_ruby_type(), any::<bool>()),
-                    1..=6,
-                ),
+                prop::collection::vec((arb_attr_name(), arb_ruby_type(), any::<bool>()), 1..=6),
             ),
             1..=3,
         ),
@@ -98,12 +98,13 @@ fn arb_types_file_builder() -> impl Strategy<Value = (String, Vec<(String, Vec<(
 }
 
 /// Generate a random ResourceFileBuilder configuration.
-fn arb_resource_file_config() -> impl Strategy<Value = (String, Vec<String>, Vec<String>, Vec<String>)> {
+fn arb_resource_file_config()
+-> impl Strategy<Value = (String, Vec<String>, Vec<String>, Vec<String>)> {
     (
         arb_provider_name(),
-        arb_unique_attrs(0, 5),  // map fields
-        arb_unique_attrs(0, 3),  // map_present fields
-        arb_unique_attrs(0, 2),  // map_bool fields
+        arb_unique_attrs(0, 5), // map fields
+        arb_unique_attrs(0, 3), // map_present fields
+        arb_unique_attrs(0, 2), // map_bool fields
     )
 }
 
@@ -124,7 +125,12 @@ fn build_types_file(provider: &str, classes: &[(String, Vec<(String, RubyType, b
 }
 
 /// Build a resource file from the strategy output.
-fn build_resource_file(provider: &str, map: &[String], map_present: &[String], map_bool: &[String]) -> String {
+fn build_resource_file(
+    provider: &str,
+    map: &[String],
+    map_present: &[String],
+    map_bool: &[String],
+) -> String {
     let tf_type = format!("{provider}_resource");
     let map_refs: Vec<&str> = map.iter().map(String::as_str).collect();
     let map_present_refs: Vec<&str> = map_present.iter().map(String::as_str).collect();

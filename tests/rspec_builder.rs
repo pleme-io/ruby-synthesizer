@@ -1,13 +1,12 @@
 //! RSpec builder proofs — prove test generation structure.
 
-use ruby_synthesizer::{RubyNode, RSpecBuilder};
+use ruby_synthesizer::{RSpecBuilder, RubyNode};
 
 // ── describe structure ───────────────────────────────────────────
 
 #[test]
 fn describe_produces_rspec_describe() {
-    let node = RSpecBuilder::describe("'my test'")
-        .build();
+    let node = RSpecBuilder::describe("'my test'").build();
     let output = node.emit(0);
     assert!(output.starts_with("RSpec.describe 'my test' do"));
     assert!(output.ends_with("end"));
@@ -66,15 +65,15 @@ fn it_behaves_like_no_trailing_comma() {
 fn nested_describe_indentation() {
     let node = RSpecBuilder::describe("'outer'")
         .context("when nested", |b| {
-            b.it("indents correctly", |b| {
-                b.expect("true", "to be true")
-            })
+            b.it("indents correctly", |b| b.expect("true", "to be true"))
         })
         .build();
     let output = node.emit(0);
 
     for line in output.lines() {
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         let spaces = line.len() - line.trim_start().len();
         assert!(spaces % 2 == 0, "line has odd indentation: '{line}'");
     }

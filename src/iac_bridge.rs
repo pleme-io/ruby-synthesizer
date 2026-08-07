@@ -6,10 +6,10 @@
 //!
 //! Enabled via the `iac-bridge` feature flag.
 
+use crate::rbs_types::RbsType;
+use crate::types::RubyType;
 use iac_forge::ir::IacType;
 use iac_forge::morphism::{Morphism, ProvenMorphism};
-use crate::types::RubyType;
-use crate::rbs_types::RbsType;
 
 /// Convert an IaC IR type to its Ruby Dry::Types representation.
 ///
@@ -31,9 +31,7 @@ pub fn iac_type_to_ruby(ty: &IacType) -> RubyType {
             RubyType::simple("T::Coercible::Float"),
         ]),
         IacType::Boolean => RubyType::simple("T::Bool"),
-        IacType::List(inner) | IacType::Set(inner) => {
-            RubyType::array(iac_type_to_ruby(inner))
-        }
+        IacType::List(inner) | IacType::Set(inner) => RubyType::array(iac_type_to_ruby(inner)),
         IacType::Map(_) | IacType::Object { .. } => RubyType::Hash,
         IacType::Enum { values, underlying } => {
             let base = iac_type_to_ruby(underlying);
@@ -49,7 +47,9 @@ pub fn iac_type_to_ruby(ty: &IacType) -> RubyType {
             }
         }
         IacType::Any => RubyType::Any,
-        other => panic!("unsupported IacType variant in iac_type_to_ruby: {other:?} — add an explicit mapping"),
+        other => panic!(
+            "unsupported IacType variant in iac_type_to_ruby: {other:?} — add an explicit mapping"
+        ),
     }
 }
 
@@ -84,16 +84,13 @@ pub fn iac_type_to_rbs(ty: &IacType) -> RbsType {
             if values.is_empty() {
                 iac_type_to_rbs(underlying)
             } else {
-                RbsType::union(
-                    values
-                        .iter()
-                        .map(|v| RbsType::string_literal(v))
-                        .collect(),
-                )
+                RbsType::union(values.iter().map(|v| RbsType::string_literal(v)).collect())
             }
         }
         IacType::Any => RbsType::Untyped,
-        other => panic!("unsupported IacType variant in iac_type_to_rbs: {other:?} — add an explicit mapping"),
+        other => panic!(
+            "unsupported IacType variant in iac_type_to_rbs: {other:?} — add an explicit mapping"
+        ),
     }
 }
 
@@ -280,8 +277,10 @@ mod morphism_tests {
         assert!(!violations.is_empty());
         // RubyType→String is the stage that disagrees (re-emit differs
         // from the provided dst).
-        assert!(violations.iter().any(|v| v.contains("RubyType→String")),
-            "expected traceability to pinpoint the stage: {violations:?}");
+        assert!(
+            violations.iter().any(|v| v.contains("RubyType→String")),
+            "expected traceability to pinpoint the stage: {violations:?}"
+        );
     }
 
     #[test]
@@ -328,7 +327,10 @@ mod tests {
 
     #[test]
     fn float_maps_to_coercible_float() {
-        assert_eq!(iac_type_to_ruby(&IacType::Float).emit(), "T::Coercible::Float");
+        assert_eq!(
+            iac_type_to_ruby(&IacType::Float).emit(),
+            "T::Coercible::Float"
+        );
     }
 
     #[test]
@@ -363,7 +365,10 @@ mod tests {
     #[test]
     fn nested_list() {
         assert_eq!(
-            iac_type_to_ruby(&IacType::List(Box::new(IacType::List(Box::new(IacType::String))))).emit(),
+            iac_type_to_ruby(&IacType::List(Box::new(IacType::List(Box::new(
+                IacType::String
+            )))))
+            .emit(),
             "T::Array.of(T::Array.of(T::String))"
         );
     }
@@ -382,7 +387,8 @@ mod tests {
             iac_type_to_ruby(&IacType::Object {
                 name: "test".into(),
                 fields: vec![],
-            }).emit(),
+            })
+            .emit(),
             "T::Hash"
         );
     }
@@ -393,7 +399,8 @@ mod tests {
             iac_type_to_ruby(&IacType::Enum {
                 values: vec!["tcp".into(), "udp".into()],
                 underlying: Box::new(IacType::String),
-            }).emit(),
+            })
+            .emit(),
             "T::String.constrained(included_in: ['tcp', 'udp'])"
         );
     }
@@ -404,7 +411,8 @@ mod tests {
             iac_type_to_ruby(&IacType::Enum {
                 values: vec![],
                 underlying: Box::new(IacType::String),
-            }).emit(),
+            })
+            .emit(),
             "T::String"
         );
     }
@@ -481,10 +489,7 @@ mod tests {
 
     #[test]
     fn rbs_numeric_maps_to_union() {
-        assert_eq!(
-            iac_type_to_rbs(&IacType::Numeric).emit(),
-            "Integer | Float",
-        );
+        assert_eq!(iac_type_to_rbs(&IacType::Numeric).emit(), "Integer | Float",);
     }
 
     #[test]
@@ -511,7 +516,10 @@ mod tests {
     #[test]
     fn rbs_nested_list() {
         assert_eq!(
-            iac_type_to_rbs(&IacType::List(Box::new(IacType::List(Box::new(IacType::String))))).emit(),
+            iac_type_to_rbs(&IacType::List(Box::new(IacType::List(Box::new(
+                IacType::String
+            )))))
+            .emit(),
             "Array[Array[String]]",
         );
     }
@@ -530,7 +538,8 @@ mod tests {
             iac_type_to_rbs(&IacType::Object {
                 name: "x".into(),
                 fields: vec![],
-            }).emit(),
+            })
+            .emit(),
             "Hash[Symbol, untyped]",
         );
     }

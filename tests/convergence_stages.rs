@@ -3,8 +3,8 @@
 //! declared → resolved → converged → verified
 //! Builder construction → AST → emit → valid Ruby
 
+use ruby_synthesizer::builders::{ResourceFileBuilder, TypesFileBuilder};
 use ruby_synthesizer::{RubyNode, RubyType, emit_file};
-use ruby_synthesizer::builders::{TypesFileBuilder, ResourceFileBuilder};
 
 // ── declared → resolved: construction never panics ───────────────
 
@@ -13,7 +13,7 @@ fn types_builder_construction_succeeds() {
     let source = TypesFileBuilder::new("aws")
         .class("VpcAttributes", |c| {
             c.attribute("cidr_block", RubyType::simple("T::String"), true)
-             .attribute("enable_dns", RubyType::simple("T::Bool"), false)
+                .attribute("enable_dns", RubyType::simple("T::Bool"), false)
         })
         .emit();
     assert!(!source.is_empty());
@@ -52,7 +52,9 @@ fn emit_file_ends_with_newline() {
 #[test]
 fn types_builder_emit_ends_with_newline() {
     let source = TypesFileBuilder::new("porkbun")
-        .class("Test", |c| c.attribute("x", RubyType::simple("T::String"), true))
+        .class("Test", |c| {
+            c.attribute("x", RubyType::simple("T::String"), true)
+        })
         .emit();
     assert!(source.ends_with('\n'));
 }
@@ -69,22 +71,26 @@ fn resource_builder_emit_ends_with_newline() {
 
 #[test]
 fn types_builder_deterministic() {
-    let build = || TypesFileBuilder::new("aws")
-        .class("VpcAttributes", |c| {
-            c.attribute("cidr", RubyType::simple("T::String"), true)
-             .attribute("dns", RubyType::simple("T::Bool"), false)
-        })
-        .emit();
+    let build = || {
+        TypesFileBuilder::new("aws")
+            .class("VpcAttributes", |c| {
+                c.attribute("cidr", RubyType::simple("T::String"), true)
+                    .attribute("dns", RubyType::simple("T::Bool"), false)
+            })
+            .emit()
+    };
 
     assert_eq!(build(), build());
 }
 
 #[test]
 fn resource_builder_deterministic() {
-    let build = || ResourceFileBuilder::new("aws", "aws_vpc", "vpc")
-        .map(vec!["cidr_block"])
-        .map_present(vec!["tags"])
-        .emit();
+    let build = || {
+        ResourceFileBuilder::new("aws", "aws_vpc", "vpc")
+            .map(vec!["cidr_block"])
+            .map_present(vec!["tags"])
+            .emit()
+    };
 
     assert_eq!(build(), build());
 }
@@ -102,8 +108,8 @@ fn adding_attribute_increases_output() {
     let large = TypesFileBuilder::new("test")
         .class("LargeAttributes", |c| {
             c.attribute("a", RubyType::simple("T::String"), true)
-             .attribute("b", RubyType::simple("T::Integer"), true)
-             .attribute("c", RubyType::simple("T::Bool"), false)
+                .attribute("b", RubyType::simple("T::Integer"), true)
+                .attribute("c", RubyType::simple("T::Bool"), false)
         })
         .emit();
 
@@ -129,7 +135,7 @@ fn adding_map_fields_increases_output() {
 
 #[test]
 fn macro_module_emit_matches_manual() {
-    use ruby_synthesizer::{ruby_module, ruby_body, ruby_parent};
+    use ruby_synthesizer::{ruby_body, ruby_module, ruby_parent};
 
     let via_macro = ruby_module!("Test::Types" => {
         include "Dry.Types()";

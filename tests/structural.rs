@@ -5,8 +5,8 @@ use proptest::prelude::*;
 use regex::Regex;
 use std::collections::HashSet;
 
-use ruby_synthesizer::builders::{ResourceFileBuilder, TypesFileBuilder};
 use ruby_synthesizer::RubyType;
+use ruby_synthesizer::builders::{ResourceFileBuilder, TypesFileBuilder};
 
 // ── Strategies ──────────────────────────────────────────────────────
 
@@ -22,8 +22,10 @@ fn arb_provider() -> impl Strategy<Value = String> {
 
 fn arb_attr_name() -> impl Strategy<Value = String> {
     "[a-z][a-z_]{1,15}".prop_filter("no ruby keywords", |s| {
-        !["end", "def", "class", "module", "do", "if", "else", "begin", "rescue"]
-            .contains(&s.as_str())
+        ![
+            "end", "def", "class", "module", "do", "if", "else", "begin", "rescue",
+        ]
+        .contains(&s.as_str())
     })
 }
 
