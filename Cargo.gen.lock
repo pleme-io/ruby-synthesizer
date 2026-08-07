@@ -1,8 +1,8 @@
 {
   "schema_version": 2,
-  "cargo_lock_sha256": "16abea4d867d3396334675497e8664270269ebe12cc416f17c406349fee9d80c",
+  "cargo_lock_sha256": "d96eead12608e6da0827531768bdaf2806ab42443eabaf6592b0a963dfea62a2",
   "manifest_sha256": {
-    "Cargo.toml": "2235970bd3f4352bf2590a9a667410913929bf731f63f57a1245c25989c94132"
+    "Cargo.toml": "7cd56ee41954f8b90c5f637cbc9edc87603ecceb6bf41a28637f3949d062ae6b"
   },
   "target_resolves": {
     "base": {
@@ -1109,7 +1109,7 @@
           "unicode-segment"
         ]
       },
-      "ruby-synthesizer-0.1.0": {
+      "ruby-synthesizer-0.1.1": {
         "runtime_dependencies": [
           {
             "name": "synthesizer_core",
@@ -2986,7 +2986,7 @@
     "regex-syntax-0.8.11": {
       "edition": "2021"
     },
-    "ruby-synthesizer-0.1.0": {
+    "ruby-synthesizer-0.1.1": {
       "edition": "2024",
       "lib_target": {
         "name": "ruby_synthesizer",
