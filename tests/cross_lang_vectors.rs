@@ -8,6 +8,15 @@
 //! If a vector fails, either canonical emission changed (schema bump
 //! required) or the hash function changed. No silent drift.
 
+#![cfg(feature = "iac-bridge")]
+// Every proof in this file reaches iac-forge — either `iac_forge::*`
+// directly or the `iac_bridge` / sexpr impls, both of which live behind
+// this feature. Without the gate the target cannot COMPILE under a plain
+// `cargo test`, which is not a skipped test: it is a hard build error
+// that takes the whole run down and hides every other target's result.
+// Gated rather than made default because `iac-bridge` pulls the
+// iac-forge dependency in, and src/sexpr.rs says that is deliberate.
+
 use iac_forge::sexpr::{SExpr, ToSExpr};
 use ruby_synthesizer::{RbsType, RubyType};
 
@@ -194,7 +203,10 @@ fn union_of_one_variant_degenerates_in_rust_constructor() {
     // implementations must also respect.
     let single_wrapped = RubyType::union(vec![RubyType::simple("T::String")]);
     let direct = RubyType::simple("T::String");
-    assert_eq!(single_wrapped.to_sexpr().content_hash(), direct.to_sexpr().content_hash());
+    assert_eq!(
+        single_wrapped.to_sexpr().content_hash(),
+        direct.to_sexpr().content_hash()
+    );
 }
 
 #[test]

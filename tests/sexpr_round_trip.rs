@@ -4,6 +4,15 @@
 //! (emit → parse → from_sexpr), deterministic emission, printable-ASCII
 //! output, balanced parens.
 
+#![cfg(feature = "iac-bridge")]
+// Every proof in this file reaches iac-forge — either `iac_forge::*`
+// directly or the `iac_bridge` / sexpr impls, both of which live behind
+// this feature. Without the gate the target cannot COMPILE under a plain
+// `cargo test`, which is not a skipped test: it is a hard build error
+// that takes the whole run down and hides every other target's result.
+// Gated rather than made default because `iac-bridge` pulls the
+// iac-forge dependency in, and src/sexpr.rs says that is deliberate.
+
 use proptest::prelude::*;
 
 use iac_forge::sexpr::{FromSExpr, SExpr, ToSExpr};
@@ -20,9 +29,7 @@ fn arb_ruby_type() -> impl Strategy<Value = RubyType> {
     leaf.prop_recursive(3, 16, 4, |inner| {
         prop_oneof![
             inner.clone().prop_map(|t| RubyType::Array(Box::new(t))),
-            inner
-                .clone()
-                .prop_map(|t| RubyType::Optional(Box::new(t))),
+            inner.clone().prop_map(|t| RubyType::Optional(Box::new(t))),
             prop::collection::vec(inner.clone(), 2..4).prop_map(RubyType::union),
             (inner.clone(), "[a-z_]+: [^\\)]{1,20}")
                 .prop_map(|(base, constraint)| RubyType::constrained(base, &constraint)),

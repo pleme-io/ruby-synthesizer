@@ -6,6 +6,15 @@
 //! - **Deterministic**: same input always produces the same output
 //! - **Compositional**: wrapper types preserve inner type mappings
 
+#![cfg(feature = "iac-bridge")]
+// Every proof in this file reaches iac-forge — either `iac_forge::*`
+// directly or the `iac_bridge` / sexpr impls, both of which live behind
+// this feature. Without the gate the target cannot COMPILE under a plain
+// `cargo test`, which is not a skipped test: it is a hard build error
+// that takes the whole run down and hides every other target's result.
+// Gated rather than made default because `iac-bridge` pulls the
+// iac-forge dependency in, and src/sexpr.rs says that is deliberate.
+
 use proptest::prelude::*;
 
 use iac_forge::ir::{IacAttribute, IacType};
@@ -39,37 +48,35 @@ fn arb_iac_type() -> impl Strategy<Value = IacType> {
                 (
                     "[a-z][a-z_]{1,8}",
                     prop::collection::vec(
-                        (
-                            "[a-z][a-z_]{1,8}",
-                            inner.clone(),
-                            any::<bool>(),
-                        ).prop_map(|(name, ty, req)| IacAttribute {
-                            api_name: name.clone(),
-                            canonical_name: name,
-                            description: String::new(),
-                            iac_type: ty,
-                            required: req,
-                            optional: !req,
-                            computed: false,
-                            sensitive: false,
-                            json_encoded: false,
-                            immutable: false,
-                            default_value: None,
-                            enum_values: None,
-                            read_path: None,
-                            update_only: false,
-                        }),
+                        ("[a-z][a-z_]{1,8}", inner.clone(), any::<bool>(),).prop_map(
+                            |(name, ty, req)| IacAttribute {
+                                api_name: name.clone(),
+                                canonical_name: name,
+                                description: String::new(),
+                                iac_type: ty,
+                                required: req,
+                                optional: !req,
+                                computed: false,
+                                sensitive: false,
+                                json_encoded: false,
+                                immutable: false,
+                                default_value: None,
+                                enum_values: None,
+                                read_path: None,
+                                update_only: false,
+                            }
+                        ),
                         0..=4,
                     ),
-                ).prop_map(|(name, fields)| IacType::Object { name, fields }),
+                )
+                    .prop_map(|(name, fields)| IacType::Object { name, fields }),
                 // Enum { values, underlying }
-                (
-                    prop::collection::vec("[a-z]{2,6}", 0..=5),
-                    inner.clone(),
-                ).prop_map(|(values, underlying)| IacType::Enum {
-                    values,
-                    underlying: Box::new(underlying),
-                }),
+                (prop::collection::vec("[a-z]{2,6}", 0..=5), inner.clone(),).prop_map(
+                    |(values, underlying)| IacType::Enum {
+                        values,
+                        underlying: Box::new(underlying),
+                    }
+                ),
             ]
         },
     )

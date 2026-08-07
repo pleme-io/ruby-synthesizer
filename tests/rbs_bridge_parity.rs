@@ -7,6 +7,15 @@
 //! - **Balanced brackets**: Array[...] and Hash[...] are always balanced
 //! - **Compositional**: wrapper types preserve inner type mappings
 
+#![cfg(feature = "iac-bridge")]
+// Every proof in this file reaches iac-forge — either `iac_forge::*`
+// directly or the `iac_bridge` / sexpr impls, both of which live behind
+// this feature. Without the gate the target cannot COMPILE under a plain
+// `cargo test`, which is not a skipped test: it is a hard build error
+// that takes the whole run down and hides every other target's result.
+// Gated rather than made default because `iac-bridge` pulls the
+// iac-forge dependency in, and src/sexpr.rs says that is deliberate.
+
 use proptest::prelude::*;
 
 use iac_forge::ir::{IacAttribute, IacType};
