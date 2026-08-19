@@ -77,11 +77,13 @@ jobs:
           persist-credentials: false
 
       - name: Configure git credentials for private cargo git dependencies
-        env:
-          GIT_AUTH_TOKEN: "${{ secrets.BOT_PAT }}"
-        run: |
-          git config --global url."https://x-access-token:${GIT_AUTH_TOKEN}@github.com/".insteadOf "https://github.com/"
-          git config --global --unset-all http.https://github.com/.extraheader || true
+        # The BOT_PAT > GITHUB_TOKEN order and the load-bearing
+        # extraheader-unset live in the action, once, which is what its own
+        # description says it exists for.
+        uses: pleme-io/actions/git-credentials@main
+        with:
+          bot-pat: ${{ secrets.BOT_PAT }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: rustc / cargo version
         run: cargo --version && rustc --version
